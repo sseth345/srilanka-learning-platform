@@ -1,0 +1,45 @@
+#!/bin/bash
+
+echo "🔧 Firebase Backend Setup Helper"
+echo "================================="
+echo ""
+echo "This script will help you set up Firebase Admin SDK for the backend."
+echo ""
+
+# Check if .env file exists
+if [ ! -f ".env" ]; then
+    echo "Creating .env file..."
+    touch .env
+fi
+
+echo "📋 Please follow these steps:"
+echo ""
+echo "1. Go to Firebase Console: https://console.firebase.google.com/"
+echo "2. Select your project"
+echo "3. Go to Project Settings (gear icon) → Service Accounts tab"
+echo "4. Click 'Generate new private key'"
+echo "5. Download the JSON file"
+echo ""
+echo "6. Extract these values from the downloaded JSON:"
+echo "   - project_id"
+echo "   - private_key_id" 
+echo "   - private_key"
+echo "   - client_email"
+echo "   - client_id"
+echo ""
+echo "7. Add them to the .env file in this format:"
+echo ""
+echo "FIREBASE_PROJECT_ID=your-project-id"
+echo "FIREBASE_PRIVATE_KEY_ID=your-private-key-id"
+echo "FIREBASE_PRIVATE_KEY=\"-----BEGIN PRIVATE KEY-----\\nYour private key\\n-----END PRIVATE KEY-----\\n\""
+echo "FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com"
+echo "FIREBASE_CLIENT_ID=your-client-id"
+echo ""
+echo "8. Save the .env file and run: npm run dev"
+echo ""
+echo "Alternatively, you can:"
+echo "- Rename the downloaded JSON file to 'firebase-service-account.json'"
+echo "- Place it in the backend root directory"
+echo "- The app will automatically use it"
+echo ""
+echo "🚀 Once configured, your backend will start successfully!"
