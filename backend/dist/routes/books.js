@@ -7,8 +7,23 @@ const express_1 = __importDefault(require("express"));
 const multer_1 = __importDefault(require("multer"));
 const auth_1 = require("../middleware/auth");
 const firebase_1 = require("../config/firebase");
+const cloudinary_1 = __importDefault(require("../config/cloudinary"));
 const path_1 = __importDefault(require("path"));
-const uuid_1 = require("uuid");
+const crypto_1 = require("crypto");
+const isCloudinaryConfigured = () => !!process.env.CLOUDINARY_CLOUD_NAME &&
+    !!process.env.CLOUDINARY_API_KEY &&
+    !!process.env.CLOUDINARY_API_SECRET;
+const getCloudinaryDownloadUrl = (publicId, fileName) => {
+    if (!isCloudinaryConfigured()) {
+        return '';
+    }
+    const extension = path_1.default.extname(fileName).replace('.', '').toLowerCase() || 'pdf';
+    return cloudinary_1.default.utils.private_download_url(publicId, extension, {
+        resource_type: 'raw',
+        type: 'upload',
+        attachment: true,
+    });
+};
 const router = express_1.default.Router();
 // Configure multer for file upload
 const upload = (0, multer_1.default)({
@@ -18,7 +33,7 @@ const upload = (0, multer_1.default)({
     },
     fileFilter: (req, file, cb) => {
         const ext = path_1.default.extname(file.originalname).toLowerCase();
-        if (ext !== '.pdf') {
+        if (ext !== '.pdf' || file.mimetype !== 'application/pdf') {
             return cb(new Error('Only PDF files are allowed'));
         }
         cb(null, true);
@@ -32,6 +47,7 @@ router.post('/upload', auth_1.authenticateToken, (0, auth_1.requireRole)('teache
         }
         const { title, description, category, subject } = req.body;
         const { uid, email } = req.user;
+        const { buffer, originalname, size, mimetype } = req.file;
         if (!title) {
             return res.status(400).json({ error: 'Title is required' });
         }
@@ -39,36 +55,59 @@ router.post('/upload', auth_1.authenticateToken, (0, auth_1.requireRole)('teache
         const userDoc = await firebase_1.db.collection('users').doc(uid).get();
         const userData = userDoc.data();
         const displayName = userData?.displayName || email || 'Unknown';
-        // Create unique filename
-        const fileId = (0, uuid_1.v4)();
-        const fileName = `books/${fileId}_${req.file.originalname}`;
-        // Upload to Firebase Storage
-        const file = firebase_1.bucket.file(fileName);
-        await file.save(req.file.buffer, {
-            metadata: {
-                contentType: 'application/pdf',
-                metadata: {
+        // Create unique filename/public id
+        const fileId = (0, crypto_1.randomUUID)();
+        if (mimetype !== 'application/pdf') {
+            return res.status(400).json({ error: 'Invalid file type. Only PDFs are allowed.' });
+        }
+        if (!isCloudinaryConfigured()) {
+            return res.status(500).json({
+                error: 'Cloudinary storage is not properly configured. Please contact the administrator.',
+            });
+        }
+        const sanitizedName = path_1.default.parse(originalname).name.replace(/[^a-zA-Z0-9-_]+/g, '-');
+        const extension = path_1.default.extname(originalname).toLowerCase() || '.pdf';
+        const folder = process.env.CLOUDINARY_BOOKS_FOLDER || 'books';
+        const publicId = `${folder}/${fileId}-${sanitizedName}`;
+        const uploadResult = await new Promise((resolve, reject) => {
+            const uploadStream = cloudinary_1.default.uploader.upload_stream({
+                public_id: publicId,
+                resource_type: 'raw',
+                type: 'upload',
+                access_mode: 'public',
+                use_filename: false,
+                unique_filename: false,
+                overwrite: false,
+                filename_override: `${sanitizedName}${extension}`,
+                context: {
                     uploadedBy: uid,
                     uploadedByEmail: email || '',
                     uploadedByName: displayName || '',
-                    originalName: req.file.originalname,
+                    originalName: originalname,
                 },
-            },
+            }, (error, result) => {
+                if (error || !result) {
+                    return reject(error || new Error('Failed to upload file to Cloudinary'));
+                }
+                resolve(result);
+            });
+            uploadStream.end(buffer);
         });
-        // Make the file publicly accessible
-        await file.makePublic();
-        // Get the public URL
-        const publicUrl = `https://storage.googleapis.com/${firebase_1.bucket.name}/${fileName}`;
-        // Save book metadata to Firestore
+        const storagePath = uploadResult.public_id;
+        const downloadUrl = getCloudinaryDownloadUrl(storagePath, originalname);
+        const publicUrl = downloadUrl || uploadResult.secure_url;
         const bookData = {
             title,
             description: description || '',
             category: category || 'General',
             subject: subject || '',
-            fileName: req.file.originalname,
-            fileSize: req.file.size,
+            fileName: originalname,
+            fileSize: uploadResult.bytes || size,
             fileUrl: publicUrl,
-            storagePath: fileName,
+            storagePath,
+            storageProvider: 'cloudinary',
+            cloudinaryAssetId: uploadResult.asset_id || '',
+            cloudinaryVersion: uploadResult.version,
             uploadedBy: uid,
             uploadedByEmail: email || '',
             uploadedByName: displayName || '',
@@ -97,29 +136,32 @@ router.post('/upload', auth_1.authenticateToken, (0, auth_1.requireRole)('teache
 router.get('/', auth_1.authenticateToken, async (req, res) => {
     try {
         const { category, subject, search, limit = 50, offset = 0 } = req.query;
-        let query = firebase_1.db.collection('books');
-        // Only show published books
-        query = query.where('published', '==', true);
-        // Filter by category if specified
-        if (category) {
-            query = query.where('category', '==', category);
-        }
-        // Filter by subject if specified
-        if (subject) {
-            query = query.where('subject', '==', subject);
-        }
-        const snapshot = await query
-            .orderBy('createdAt', 'desc')
-            .limit(Number(limit))
-            .offset(Number(offset))
-            .get();
+        // Fetch all published books without orderBy to avoid composite index requirement
+        let query = firebase_1.db.collection('books').where('published', '==', true);
+        const snapshot = await query.get();
         let books = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
             createdAt: doc.data().createdAt?.toDate(),
             updatedAt: doc.data().updatedAt?.toDate(),
         }));
-        // Client-side search filter if search term is provided
+        books = books.map((book) => {
+            if (book.storageProvider === 'cloudinary' &&
+                book.storagePath &&
+                book.fileName) {
+                book.fileUrl = getCloudinaryDownloadUrl(book.storagePath, book.fileName);
+            }
+            return book;
+        });
+        // Filter in memory by category
+        if (category) {
+            books = books.filter((book) => book.category === category);
+        }
+        // Filter in memory by subject
+        if (subject) {
+            books = books.filter((book) => book.subject === subject);
+        }
+        // Search filter if search term is provided
         if (search) {
             const searchTerm = search.toLowerCase();
             books = books.filter((book) => book.title.toLowerCase().includes(searchTerm) ||
@@ -127,7 +169,17 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
                 book.category.toLowerCase().includes(searchTerm) ||
                 book.subject.toLowerCase().includes(searchTerm));
         }
-        res.json(books);
+        // Sort in memory by createdAt descending
+        books.sort((a, b) => {
+            const aTime = a.createdAt?.getTime() || 0;
+            const bTime = b.createdAt?.getTime() || 0;
+            return bTime - aTime;
+        });
+        // Apply pagination in memory
+        const startIndex = Number(offset);
+        const endIndex = startIndex + Number(limit);
+        const paginatedBooks = books.slice(startIndex, endIndex);
+        res.json(paginatedBooks);
     }
     catch (error) {
         console.error('Error fetching books:', error);
@@ -147,11 +199,17 @@ router.get('/:id', auth_1.authenticateToken, async (req, res) => {
         await firebase_1.db.collection('books').doc(id).update({
             views: (bookData.views || 0) + 1,
         });
+        const fileUrl = bookData.storageProvider === 'cloudinary' &&
+            bookData.storagePath &&
+            bookData.fileName
+            ? getCloudinaryDownloadUrl(bookData.storagePath, bookData.fileName)
+            : bookData.fileUrl;
         res.json({
             id: doc.id,
             ...bookData,
             createdAt: bookData.createdAt?.toDate(),
             updatedAt: bookData.updatedAt?.toDate(),
+            fileUrl,
         });
     }
     catch (error) {
@@ -211,8 +269,16 @@ router.delete('/:id', auth_1.authenticateToken, (0, auth_1.requireRole)('teacher
         }
         // Delete file from storage
         try {
-            const file = firebase_1.bucket.file(bookData.storagePath);
-            await file.delete();
+            if (bookData.storageProvider === 'cloudinary' && bookData.storagePath) {
+                await cloudinary_1.default.uploader.destroy(bookData.storagePath, {
+                    resource_type: 'raw',
+                    type: 'upload',
+                });
+            }
+            else if (bookData.storagePath) {
+                const file = firebase_1.bucket.file(bookData.storagePath);
+                await file.delete();
+            }
         }
         catch (storageError) {
             console.error('Error deleting file from storage:', storageError);
@@ -240,9 +306,15 @@ router.post('/:id/download', auth_1.authenticateToken, async (req, res) => {
         await firebase_1.db.collection('books').doc(id).update({
             downloads: (bookData.downloads || 0) + 1,
         });
+        let downloadUrl = bookData.fileUrl;
+        if (bookData.storageProvider === 'cloudinary' &&
+            bookData.storagePath &&
+            bookData.fileName) {
+            downloadUrl = getCloudinaryDownloadUrl(bookData.storagePath, bookData.fileName);
+        }
         res.json({
             message: 'Download count updated',
-            fileUrl: bookData.fileUrl
+            fileUrl: downloadUrl
         });
     }
     catch (error) {

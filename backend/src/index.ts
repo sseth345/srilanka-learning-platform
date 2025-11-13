@@ -10,6 +10,7 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import contentRoutes from './routes/content';
 import booksRoutes from './routes/books';
+import videosRoutes from './routes/videos';
 import discussionsRoutes from './routes/discussions';
 import commentsRoutes from './routes/comments';
 import exercisesRoutes from './routes/exercises';
@@ -19,10 +20,14 @@ import analyticsRoutes from './routes/analytics';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const BASE_PORT = Number(process.env.PORT) || 3001;
+const MAX_PORT_SCAN = Number(process.env.PORT_SCAN_RANGE || 5);
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  crossOriginEmbedderPolicy: false,
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -33,17 +38,28 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? (process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : [])
+  : ['http://localhost:5173', 'http://localhost:8080', process.env.FRONTEND_URL].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
 // Logging
 app.use(morgan('combined'));
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsing middleware - increased limits for video uploads
+app.use(express.json({ limit: '550mb' }));
+app.use(express.urlencoded({ extended: true, limit: '550mb' }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -59,6 +75,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/books', booksRoutes);
+app.use('/api/videos', videosRoutes);
 app.use('/api/discussions', discussionsRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/exercises', exercisesRoutes);
@@ -84,10 +101,28 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📚 Sri Lankan Learning Platform API`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+const startServer = (port: number, attemptsLeft: number) => {
+  const server = app.listen(port, () => {
+    console.log(`🚀 Server running on port ${port}`);
+    console.log(`📚 Sri Lankan Learning Platform API`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
+
+  // Increase timeout for large file uploads (15 minutes)
+  server.timeout = 900000;
+  server.keepAliveTimeout = 65000;
+
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+      console.warn(`⚠️  Port ${port} is in use. Trying port ${port + 1}...`);
+      setTimeout(() => startServer(port + 1, attemptsLeft - 1), 500);
+    } else {
+      console.error('❌ Failed to start server:', err);
+      process.exit(1);
+    }
+  });
+};
+
+startServer(BASE_PORT, MAX_PORT_SCAN);
 
 export default app;

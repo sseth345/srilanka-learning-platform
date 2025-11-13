@@ -14,9 +14,16 @@ const auth_1 = __importDefault(require("./routes/auth"));
 const users_1 = __importDefault(require("./routes/users"));
 const content_1 = __importDefault(require("./routes/content"));
 const books_1 = __importDefault(require("./routes/books"));
+const videos_1 = __importDefault(require("./routes/videos"));
+const discussions_1 = __importDefault(require("./routes/discussions"));
+const comments_1 = __importDefault(require("./routes/comments"));
+const exercises_1 = __importDefault(require("./routes/exercises"));
+const news_1 = __importDefault(require("./routes/news"));
+const analytics_1 = __importDefault(require("./routes/analytics"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const PORT = process.env.PORT || 3001;
+const BASE_PORT = Number(process.env.PORT) || 3001;
+const MAX_PORT_SCAN = Number(process.env.PORT_SCAN_RANGE || 5);
 // Security middleware
 app.use((0, helmet_1.default)());
 // Rate limiting
@@ -49,6 +56,12 @@ app.use('/api/auth', auth_1.default);
 app.use('/api/users', users_1.default);
 app.use('/api/content', content_1.default);
 app.use('/api/books', books_1.default);
+app.use('/api/videos', videos_1.default);
+app.use('/api/discussions', discussions_1.default);
+app.use('/api/comments', comments_1.default);
+app.use('/api/exercises', exercises_1.default);
+app.use('/api/news', news_1.default);
+app.use('/api/analytics', analytics_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Error:', err);
@@ -64,10 +77,23 @@ app.use((err, req, res, next) => {
 app.use('*', (req, res) => {
     res.status(404).json({ error: 'Route not found' });
 });
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📚 Sri Lankan Learning Platform API`);
-    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+const startServer = (port, attemptsLeft) => {
+    const server = app.listen(port, () => {
+        console.log(`🚀 Server running on port ${port}`);
+        console.log(`📚 Sri Lankan Learning Platform API`);
+        console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+    server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+            console.warn(`⚠️  Port ${port} is in use. Trying port ${port + 1}...`);
+            setTimeout(() => startServer(port + 1, attemptsLeft - 1), 500);
+        }
+        else {
+            console.error('❌ Failed to start server:', err);
+            process.exit(1);
+        }
+    });
+};
+startServer(BASE_PORT, MAX_PORT_SCAN);
 exports.default = app;
 //# sourceMappingURL=index.js.map
