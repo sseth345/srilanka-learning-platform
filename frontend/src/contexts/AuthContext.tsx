@@ -135,7 +135,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           },
           stats: {
             totalLoginDays: 1,
-            lastActiveDate: new Date(),
             coursesCompleted: 0,
             exercisesCompleted: 0,
             streakDays: 1,
