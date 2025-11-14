@@ -58,6 +58,16 @@ export const VideoPlayerDialog = ({
               controlsList="nodownload"
               className="w-full h-full"
               preload="metadata"
+              onError={(e) => {
+                console.error("Video playback error:", e);
+                const videoElement = e.target as HTMLVideoElement;
+                console.error("Video error details:", {
+                  error: videoElement.error,
+                  networkState: videoElement.networkState,
+                  readyState: videoElement.readyState,
+                  src: video.streamingUrl,
+                });
+              }}
             />
           </div>
           {video.description && (

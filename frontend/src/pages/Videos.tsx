@@ -122,29 +122,46 @@ const Videos = () => {
 
   const handlePlayVideo = async (video: Video) => {
     try {
-      const headers = await getAuthHeaders();
-
-      const response = await fetch(
-        getApiEndpoint(`/videos/${video.id}/view`),
-        {
-          method: "POST",
-          headers,
-        }
-      );
-
+      // Use existing streamingUrl as fallback
       let streamingUrl = video.streamingUrl;
-      if (response.ok) {
-        const data = await response.json();
-        streamingUrl = data.streamingUrl || video.streamingUrl;
+
+      // Try to get updated streamingUrl from backend (optional - for view tracking)
+      try {
+        const headers = await getAuthHeaders();
+        const response = await fetch(
+          getApiEndpoint(`/videos/${video.id}/view`),
+          {
+            method: "POST",
+            headers,
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          streamingUrl = data.streamingUrl || video.streamingUrl;
+        } else {
+          // If backend fails, still use existing URL
+          console.warn("Failed to update view count, using existing streaming URL");
+        }
+      } catch (apiError) {
+        // If API call fails, still use existing URL
+        console.warn("Error calling view endpoint, using existing streaming URL:", apiError);
+      }
+
+      // Validate streamingUrl exists
+      if (!streamingUrl) {
+        toast.error("Video streaming URL is missing. Please contact support.");
+        return;
       }
 
       setSelectedVideo({ ...video, streamingUrl });
       setPlayerOpen(true);
 
-      fetchVideos().catch((error) => console.error(error));
+      // Refresh video list in background (don't wait for it)
+      fetchVideos().catch((error) => console.error("Error refreshing videos:", error));
     } catch (error) {
       console.error("Error playing video:", error);
-      toast.error("Failed to start video");
+      toast.error("Failed to start video. Please try again.");
     }
   };
 
