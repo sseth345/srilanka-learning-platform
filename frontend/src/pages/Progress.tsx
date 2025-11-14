@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthToken } from '@/hooks/useAuthToken';
 import { format, differenceInDays } from 'date-fns';
+import { getApiEndpoint } from '@/config/api';
 
 interface Submission {
   id: string;
@@ -44,7 +45,7 @@ const Progress = () => {
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch('http://localhost:3001/api/exercises/my/submissions', {
+      const response = await fetch(getApiEndpoint('/exercises/my/submissions'), {
         headers,
       });
 

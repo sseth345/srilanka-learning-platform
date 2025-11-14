@@ -1,24 +1,24 @@
 # Book Upload Feature - Setup Guide
 
 ## Overview
-This feature allows teachers to upload PDF books to Firebase Storage and students to view/download them. The system includes:
+This feature allows teachers to upload PDF books to Cloudinary (or, if Cloudinary credentials are skipped, the original Firebase Storage bucket) and students to view/download them. The system includes:
 
-- **Backend**: Express API with multer for file uploads, Firebase Storage integration
+- **Backend**: Express API with multer for file uploads, Cloudinary integration (with seamless Firebase Storage fallback)
 - **Frontend**: React components for uploading, viewing, and managing books
 - **Database**: Firestore for book metadata
-- **Storage**: Firebase Storage for PDF files
+- **Storage**: Cloudinary for raw PDF assets (free tier) — easily swappable for Cloudflare R2 or other S3-compatible storage
 
 ## Backend Setup
 
 ### 1. Dependencies Installed
 ```bash
-npm install multer @types/multer uuid @types/uuid
+npm install multer @types/multer cloudinary
 ```
 
-### 2. Firebase Configuration
-Updated `/backend/src/config/firebase.ts` to include Firebase Storage:
-- Added `storageBucket` to Firebase initialization
-- Exported `bucket` for file operations
+### 2. Cloudinary Configuration (Optional but recommended)
+- Added `/backend/src/config/cloudinary.ts` to centralise Cloudinary credentials
+- Reads `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` and optional `CLOUDINARY_BOOKS_FOLDER`
+- If these are missing, the API automatically falls back to Firebase Storage so uploads still work
 
 ### 3. Books API Routes (`/backend/src/routes/books.ts`)
 
@@ -26,9 +26,10 @@ Updated `/backend/src/config/firebase.ts` to include Firebase Storage:
 
 **POST `/api/books/upload`** (Teachers only)
 - Upload PDF file (max 50MB)
-- Stores file in Firebase Storage
+- If Cloudinary credentials are present: stream the file to Cloudinary (`resource_type: raw`)
+- Otherwise: falls back to Firebase Storage upload
 - Saves metadata to Firestore
-- Makes file publicly accessible
+- Returns the secure URL for the chosen storage backend
 
 **GET `/api/books`**
 - List all published books
@@ -44,7 +45,7 @@ Updated `/backend/src/config/firebase.ts` to include Firebase Storage:
 - Cannot modify file, only metadata
 
 **DELETE `/api/books/:id`** (Teachers only, own books)
-- Deletes file from Storage
+- Deletes file from Cloudinary (falls back to Firebase Storage cleanup for legacy uploads)
 - Removes metadata from Firestore
 
 **POST `/api/books/:id/download`**
@@ -67,7 +68,10 @@ Updated `/backend/src/config/firebase.ts` to include Firebase Storage:
   fileName: string,            // Original filename
   fileSize: number,            // Size in bytes
   fileUrl: string,             // Public URL
-  storagePath: string,         // Firebase Storage path
+  storagePath: string,         // Cloudinary public ID (or legacy Firebase path)
+  storageProvider: 'cloudinary' | 'firebase',
+  cloudinaryAssetId?: string,
+  cloudinaryVersion?: number,
   uploadedBy: string,          // Teacher UID
   uploadedByEmail: string,
   uploadedByName: string,
@@ -91,17 +95,15 @@ Updated `/backend/src/config/firebase.ts` to include Firebase Storage:
 - Upload progress indicator
 - Auto-closes on success
 
-#### BookViewer (`/frontend/src/components/BookViewer.tsx`)
-- PDF viewer in modal dialog
-- Embedded iframe for viewing PDFs
-- Download button with tracking
-- Full-screen mode option
-- Tracks view count automatically
+#### Direct Downloads
+- Library cards provide a single **Download PDF** button
+- Clicking download triggers the backend to track the download and serves the Cloudinary file directly
+- Browser saves the file using the original filename/extension (e.g., `.pdf`)
 
 #### Library Page (`/frontend/src/pages/Library.tsx`)
 - **For Teachers**:
   - Upload button
-  - View/download/delete own books
+  - Download/delete own books
   - See upload statistics
   
 - **For Students**:
@@ -115,7 +117,7 @@ Updated `/backend/src/config/firebase.ts` to include Firebase Storage:
   - Filter by grade level
   - Responsive grid layout
   - Book cards with metadata
-  - Download/view statistics
+  - Download statistics
 
 ### 2. UI Features
 - Beautiful book cards with gradient backgrounds
@@ -126,31 +128,13 @@ Updated `/backend/src/config/firebase.ts` to include Firebase Storage:
 - Responsive design (mobile-friendly)
 - Loading states and error handling
 
-## Firebase Storage Rules
+## Cloudinary Setup
 
-Add these rules to your Firebase Storage:
-
-```javascript
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    // Books folder
-    match /books/{bookId} {
-      // Teachers can upload
-      allow create: if request.auth != null && 
-                      request.resource.contentType == 'application/pdf' &&
-                      request.resource.size <= 50 * 1024 * 1024; // 50MB
-      
-      // Anyone authenticated can read
-      allow read: if request.auth != null;
-      
-      // Only uploader can delete
-      allow delete: if request.auth != null && 
-                      resource.metadata.uploadedBy == request.auth.uid;
-    }
-  }
-}
-```
+1. Create a free Cloudinary account
+2. Copy the Cloud Name, API Key, and API Secret from the dashboard
+3. (Optional) Create a dedicated folder e.g. `books` for cleaner organisation
+4. Add the credentials to your backend `.env`
+5. Ensure the account has `raw` uploads enabled (default on free tier)
 
 ## Firestore Security Rules
 
@@ -200,6 +184,11 @@ FIREBASE_CLIENT_EMAIL=your-client-email
 FIREBASE_CLIENT_ID=your-client-id
 PORT=3001
 FRONTEND_URL=http://localhost:5173
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+# Optional: customise folder
+CLOUDINARY_BOOKS_FOLDER=books
 ```
 
 ### Frontend `.env`:
@@ -256,7 +245,7 @@ npm run dev
 
 ### ✅ Backend:
 - [x] Multer integration for file uploads
-- [x] Firebase Storage integration
+- [x] Cloudinary integration for raw PDF assets
 - [x] Books API with CRUD operations
 - [x] File upload with validation
 - [x] Download tracking
@@ -295,18 +284,17 @@ To further enhance the system, consider:
 ## Troubleshooting
 
 ### File Upload Issues:
-- Ensure Firebase Storage is enabled in Firebase Console
-- Check storage bucket name matches in config
-- Verify CORS settings in Firebase Storage
+- Verify Cloudinary credentials are correct (`cloud_name`, `api_key`, `api_secret`) if you intend to use Cloudinary
+- Confirm the account allows `raw` uploads
+- Check Cloudinary dashboard for usage limits or quota errors
 - Check file size limits (50MB max)
 
 ### Permission Errors:
 - Verify user role in Firestore
-- Check Firebase Storage rules
 - Ensure authentication token is valid
 
 ### PDF Not Displaying:
-- Check file URL is publicly accessible
+- Check Cloudinary URL is publicly accessible (should be the `secure_url`)
 - Verify browser supports PDF viewing
 - Try opening in new tab (full-screen mode)
 - Check browser console for CORS errors

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthToken } from '@/hooks/useAuthToken';
 import { CreateNewsDialog } from '@/components/CreateNewsDialog';
+import { getApiEndpoint } from '@/config/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
@@ -55,7 +56,7 @@ const NewsManagement = () => {
         params.append('status', filter);
       }
 
-      const response = await fetch(`http://localhost:3001/api/news?${params.toString()}`, {
+      const response = await fetch(`${getApiEndpoint('/news')}?${params.toString()}`, {
         headers,
       });
 
@@ -87,7 +88,7 @@ const NewsManagement = () => {
     setDeleting(true);
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`http://localhost:3001/api/news/${id}`, {
+      const response = await fetch(getApiEndpoint(`/news/${id}`), {
         method: 'DELETE',
         headers,
       });
@@ -118,7 +119,7 @@ const NewsManagement = () => {
   const handleTogglePublish = async (id: string, currentStatus: boolean) => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`http://localhost:3001/api/news/${id}`, {
+      const response = await fetch(getApiEndpoint(`/news/${id}`), {
         method: 'PUT',
         headers: {
           ...headers,

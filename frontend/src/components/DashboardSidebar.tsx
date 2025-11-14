@@ -61,8 +61,8 @@ export const DashboardSidebar = () => {
   const links = role === "student" ? studentLinks : teacherLinks;
 
   return (
-    <aside className="w-64 border-r bg-card h-[calc(100vh-4rem)] sticky top-16 flex flex-col">
-      <nav className="p-4 space-y-2 flex-1">
+    <aside className="w-64 border-r bg-card/50 backdrop-blur-sm h-[calc(100vh-4rem)] sticky top-16 flex flex-col shadow-sm">
+      <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
         {links.map((link) => (
           <NavLink
             key={link.path}
@@ -70,37 +70,40 @@ export const DashboardSidebar = () => {
             end={link.path === "/"}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+                "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 group",
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-elevated"
-                  : "hover:bg-muted text-foreground"
+                  ? "bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-md font-medium"
+                  : "hover:bg-muted/80 text-foreground hover:translate-x-1"
               )
             }
           >
-            <link.icon className="h-5 w-5" />
+            <link.icon className={cn(
+              "h-5 w-5 transition-transform",
+              "group-hover:scale-110"
+            )} />
             <span className="font-medium">{link.label}</span>
           </NavLink>
         ))}
       </nav>
       
       {/* User Profile Section */}
-      <div className="p-4 border-t">
+      <div className="p-4 border-t bg-muted/30">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start p-2 h-auto">
+            <Button variant="ghost" className="w-full justify-start p-2 h-auto hover:bg-muted/80 transition-colors rounded-lg">
               <div className="flex items-center gap-3 w-full">
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-9 w-9 ring-2 ring-primary/20">
                   <AvatarImage src={userProfile?.avatar} />
-                  <AvatarFallback>
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-primary-foreground font-semibold">
                     {userProfile?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col items-start flex-1 min-w-0">
-                  <span className="text-sm font-medium truncate w-full">
+                  <span className="text-sm font-semibold truncate w-full">
                     {userProfile?.displayName || 'User'}
                   </span>
                   <span className="text-xs text-muted-foreground truncate w-full">
-                    {userProfile?.role === 'teacher' ? 'Teacher' : 'Student'}
+                    {userProfile?.role === 'teacher' ? '👨‍🏫 Teacher' : '👨‍🎓 Student'}
                   </span>
                 </div>
               </div>

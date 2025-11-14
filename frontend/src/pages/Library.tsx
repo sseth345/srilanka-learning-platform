@@ -2,12 +2,10 @@ import { useState, useEffect } from "react";
 import {
   BookOpen,
   Download,
-  Eye,
   Plus,
   Search,
   Filter,
   Trash2,
-  Edit,
   Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -35,7 +33,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { BookUploadDialog } from "@/components/BookUploadDialog";
-import { BookViewer } from "@/components/BookViewer";
 
 interface Book {
   id: string;
@@ -62,8 +59,6 @@ const Library = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bookToDelete, setBookToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -71,52 +66,45 @@ const Library = () => {
   const isTeacher = userProfile?.role === "teacher";
 
   const fetchBooks = async () => {
-    try {
-      setLoading(true);
-      const headers = await getAuthHeaders();
+    const headers = await getAuthHeaders();
 
-      const params = new URLSearchParams();
-      if (selectedCategory !== "all") params.append("category", selectedCategory);
-      if (selectedSubject !== "all") params.append("subject", selectedSubject);
-      if (searchTerm) params.append("search", searchTerm);
+    const params = new URLSearchParams();
+    if (selectedCategory !== "all") params.append("category", selectedCategory);
+    if (selectedSubject !== "all") params.append("subject", selectedSubject);
+    if (searchTerm) params.append("search", searchTerm);
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/books?${params}`,
-        {
-          headers,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch books");
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/books?${params}`,
+      {
+        headers,
       }
+    );
 
-      const data = await response.json();
-      setBooks(
-        data.map((book: any) => ({
-          ...book,
-          createdAt: new Date(book.createdAt),
-        }))
-      );
-    } catch (error) {
-      console.error("Error fetching books:", error);
-      toast.error("Failed to load books");
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error("Failed to fetch books");
     }
+
+    const data = await response.json();
+    setBooks(
+      data.map((book: any) => ({
+        ...book,
+        createdAt: new Date(book.createdAt),
+      }))
+    );
   };
 
   useEffect(() => {
-    fetchBooks();
+    setLoading(true);
+    fetchBooks()
+      .catch((error) => {
+        console.error("Error fetching books:", error);
+       
+      })
+      .finally(() => setLoading(false));
   }, [selectedCategory, selectedSubject]);
 
   const handleSearch = () => {
     fetchBooks();
-  };
-
-  const handleViewBook = (book: Book) => {
-    setSelectedBook(book);
-    setViewerOpen(true);
   };
 
   const handleDownloadBook = async (book: Book) => {
@@ -135,8 +123,10 @@ const Library = () => {
       // Download file
       const link = document.createElement("a");
       link.href = book.fileUrl;
-      link.download = book.fileName;
-      link.target = "_blank";
+      link.download = book.fileName.endsWith(".pdf")
+        ? book.fileName
+        : `${book.fileName}.pdf`;
+      link.rel = "noopener";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -215,7 +205,7 @@ const Library = () => {
       </div>
 
       {/* Filters */}
-      <Card className="shadow-elevated">
+      <Card className="shadow-elevated border-2">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
@@ -264,19 +254,29 @@ const Library = () => {
 
       {/* Books Grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : books.length === 0 ? (
         <Card className="shadow-elevated">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+            <p className="text-sm text-muted-foreground">Loading books...</p>
+          </CardContent>
+        </Card>
+      ) : books.length === 0 ? (
+        <Card className="shadow-elevated border-2 border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4">
+              <BookOpen className="h-10 w-10 text-muted-foreground" />
+            </div>
             <p className="text-lg font-semibold mb-2">No books found</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground text-center max-w-md">
               {isTeacher
                 ? "Upload your first book to get started"
                 : "No books available at the moment"}
             </p>
+            {isTeacher && (
+              <Button className="mt-4" onClick={() => setUploadDialogOpen(true)}>
+                Upload Book
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -284,10 +284,10 @@ const Library = () => {
           {books.map((book) => (
             <Card
               key={book.id}
-              className="shadow-elevated hover:shadow-glow transition-all duration-300 overflow-hidden flex flex-col"
+              className="shadow-elevated hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col group border-2 hover:border-primary/20"
             >
-              <div className="h-48 bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                <BookOpen className="h-20 w-20 text-primary/40" />
+              <div className="h-48 bg-gradient-to-br from-primary/10 via-secondary/5 to-primary/10 flex items-center justify-center group-hover:from-primary/20 group-hover:to-secondary/20 transition-all duration-300">
+                <BookOpen className="h-20 w-20 text-primary/40 group-hover:text-primary/60 group-hover:scale-110 transition-all duration-300" />
               </div>
               <CardHeader className="pb-3 flex-1">
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -329,23 +329,16 @@ const Library = () => {
                   </div>
               </div>
             </CardContent>
-            <CardFooter className="gap-2 pt-0">
+              <CardFooter className="gap-2 pt-0">
                 <Button
                   variant="default"
                   className="flex-1"
                   size="sm"
-                  onClick={() => handleViewBook(book)}
-                >
-                <Eye className="mr-2 h-4 w-4" />
-                  View
-              </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => handleDownloadBook(book)}
                 >
-                <Download className="h-4 w-4" />
-              </Button>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </Button>
                 {isTeacher && book.uploadedBy === userProfile?.uid && (
                   <Button
                     variant="destructive"
@@ -355,7 +348,7 @@ const Library = () => {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 )}
-            </CardFooter>
+              </CardFooter>
           </Card>
         ))}
       </div>
@@ -366,13 +359,6 @@ const Library = () => {
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         onUploadSuccess={fetchBooks}
-      />
-
-      {/* Book Viewer */}
-      <BookViewer
-        open={viewerOpen}
-        onOpenChange={setViewerOpen}
-        book={selectedBook}
       />
 
       {/* Delete Confirmation Dialog */}

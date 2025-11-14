@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAuthToken } from '@/hooks/useAuthToken';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
+import { getApiEndpoint } from '@/config/api';
 
 interface DashboardStats {
   totalBooks: number;
@@ -56,23 +57,23 @@ const Index = () => {
       const headers = await getAuthHeaders();
 
       // Fetch exercises count
-      const exercisesRes = await fetch('http://localhost:3001/api/exercises', { headers });
+      const exercisesRes = await fetch(getApiEndpoint('/exercises'), { headers });
       const exercises = exercisesRes.ok ? await exercisesRes.json() : [];
 
       // Fetch student's submissions
-      const submissionsRes = await fetch('http://localhost:3001/api/exercises/my/submissions', { headers });
+      const submissionsRes = await fetch(getApiEndpoint('/exercises/my/submissions'), { headers });
       const submissions = submissionsRes.ok ? await submissionsRes.json() : [];
 
       // Fetch books count
-      const booksRes = await fetch('http://localhost:3001/api/books', { headers });
+      const booksRes = await fetch(getApiEndpoint('/books'), { headers });
       const books = booksRes.ok ? await booksRes.json() : [];
 
       // Fetch news count
-      const newsRes = await fetch('http://localhost:3001/api/news', { headers });
+      const newsRes = await fetch(getApiEndpoint('/news'), { headers });
       const newsData = newsRes.ok ? await newsRes.json() : { news: [] };
 
       // Fetch discussions count
-      const discussionsRes = await fetch('http://localhost:3001/api/discussions', { headers });
+      const discussionsRes = await fetch(getApiEndpoint('/discussions'), { headers });
       const discussions = discussionsRes.ok ? await discussionsRes.json() : [];
 
       // Calculate stats
@@ -122,20 +123,22 @@ const Index = () => {
   return (
     <div className="space-y-8 animate-in">
       {/* Hero Section */}
-      <div className="gradient-hero rounded-2xl p-8 shadow-glow text-white">
-        <h1 className="text-4xl font-bold mb-2">
-          Welcome back, {userProfile?.displayName || 'User'}!
-        </h1>
-        <p className="text-lg opacity-90 mb-6">
-          {isTeacher 
-            ? 'Manage your courses and track student progress' 
-            : 'Continue your learning journey today'}
-        </p>
-        <div className="flex gap-3">
+      <div className="gradient-hero rounded-2xl p-8 md:p-10 shadow-2xl text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+        <div className="relative z-10">
+          <h1 className="text-4xl md:text-5xl font-bold mb-3">
+            Welcome back, {userProfile?.displayName || 'User'}! 👋
+          </h1>
+          <p className="text-lg md:text-xl opacity-95 mb-6">
+            {isTeacher 
+              ? 'Manage your courses and track student progress' 
+              : 'Continue your learning journey today'}
+          </p>
+        <div className="flex flex-wrap gap-3">
           <Button 
             variant="secondary" 
             size="lg" 
-            className="shadow-elevated"
+            className="shadow-xl hover:shadow-2xl hover:scale-105 transition-all"
             onClick={() => navigate(isTeacher ? '/exercises' : '/progress')}
           >
             {isTeacher ? 'Create Exercise' : 'View Progress'}
@@ -144,12 +147,13 @@ const Index = () => {
             <Button 
               variant="outline" 
               size="lg" 
-              className="bg-white/10 hover:bg-white/20 border-white/30"
+              className="bg-white/10 hover:bg-white/20 border-white/30 backdrop-blur-sm hover:scale-105 transition-all"
               onClick={() => navigate('/exercises')}
             >
               Continue Learning
             </Button>
           )}
+        </div>
         </div>
       </div>
 
@@ -332,16 +336,18 @@ const Index = () => {
         )}
 
         {/* Quick Actions */}
-        <Card className="shadow-elevated gradient-card">
-          <CardHeader>
-            <h3 className="font-bold text-xl">Quick Actions</h3>
+        <Card className="shadow-elevated gradient-card border-2 border-primary/20">
+          <CardHeader className="pb-3">
+            <h3 className="font-bold text-xl flex items-center gap-2">
+              <span>⚡</span> Quick Actions
+            </h3>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {!isTeacher ? (
               <>
                 <Button 
                   variant="default" 
-                  className="w-full justify-start"
+                  className="w-full justify-start hover:translate-x-1 transition-transform"
                   onClick={() => navigate('/library')}
                 >
                   <BookOpen className="mr-2 h-4 w-4" />
@@ -349,7 +355,7 @@ const Index = () => {
                 </Button>
                 <Button 
                   variant="default" 
-                  className="w-full justify-start"
+                  className="w-full justify-start hover:translate-x-1 transition-transform"
                   onClick={() => navigate('/exercises')}
                 >
                   <FileText className="mr-2 h-4 w-4" />
@@ -357,7 +363,7 @@ const Index = () => {
                 </Button>
                 <Button 
                   variant="default" 
-                  className="w-full justify-start"
+                  className="w-full justify-start hover:translate-x-1 transition-transform"
                   onClick={() => navigate('/tamil-news')}
                 >
                   <Newspaper className="mr-2 h-4 w-4" />
@@ -365,7 +371,7 @@ const Index = () => {
                 </Button>
                 <Button 
                   variant="gradient" 
-                  className="w-full justify-start"
+                  className="w-full justify-start hover:translate-x-1 transition-transform shadow-lg"
                   onClick={() => navigate('/progress')}
                 >
                   <Award className="mr-2 h-4 w-4" />

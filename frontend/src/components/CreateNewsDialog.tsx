@@ -9,6 +9,7 @@ import { Switch } from './ui/switch';
 import { useToast } from '../hooks/use-toast';
 import { useAuthToken } from '../hooks/useAuthToken';
 import { Loader2, Plus, Upload, X, Mic } from 'lucide-react';
+import { getApiEndpoint } from '@/config/api';
 
 interface CreateNewsDialogProps {
   onSuccess?: () => void;
@@ -100,7 +101,7 @@ export const CreateNewsDialog: React.FC<CreateNewsDialogProps> = ({ onSuccess })
         formDataToSend.append('audio', audioFile);
       }
 
-      const response = await fetch('http://localhost:3001/api/news', {
+      const response = await fetch(getApiEndpoint('/news'), {
         method: 'POST',
         headers,
         body: formDataToSend,

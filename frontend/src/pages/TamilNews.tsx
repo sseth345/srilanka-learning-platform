@@ -9,6 +9,7 @@ import { useAuthToken } from '@/hooks/useAuthToken';
 import { CreateNewsDialog } from '@/components/CreateNewsDialog';
 import { NewsCard } from '@/components/NewsCard';
 import { NewsDetailView } from '@/components/NewsDetailView';
+import { getApiEndpoint } from '@/config/api';
 
 interface NewsItem {
   id: string;
@@ -59,7 +60,7 @@ const TamilNews = () => {
       if (category !== 'all') params.append('category', category);
       if (language !== 'all') params.append('language', language);
 
-      const response = await fetch(`http://localhost:3001/api/news?${params.toString()}`, {
+      const response = await fetch(`${getApiEndpoint('/news')}?${params.toString()}`, {
         headers,
       });
 
@@ -89,7 +90,7 @@ const TamilNews = () => {
   const fetchCategories = async () => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch('http://localhost:3001/api/news/meta/categories', {
+      const response = await fetch(getApiEndpoint('/news/meta/categories'), {
         headers,
       });
 

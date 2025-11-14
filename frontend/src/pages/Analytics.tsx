@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useAuthToken } from '@/hooks/useAuthToken';
 import { format } from 'date-fns';
+import { getApiEndpoint } from '@/config/api';
 
 interface OverviewStats {
   users: {
@@ -69,14 +70,14 @@ const Analytics = () => {
       const headers = await getAuthHeaders();
 
       // Fetch overview stats
-      const overviewRes = await fetch('http://localhost:3001/api/analytics/overview', { headers });
+      const overviewRes = await fetch(getApiEndpoint('/analytics/overview'), { headers });
       if (overviewRes.ok) {
         const data = await overviewRes.json();
         setOverview(data);
       }
 
       // Fetch user activity
-      const activityRes = await fetch('http://localhost:3001/api/analytics/user-activity?limit=10', { headers });
+      const activityRes = await fetch(`${getApiEndpoint('/analytics/user-activity')}?limit=10`, { headers });
       if (activityRes.ok) {
         const data = await activityRes.json();
         setUserActivity(
@@ -88,7 +89,7 @@ const Analytics = () => {
       }
 
       // Fetch exercise performance
-      const exerciseRes = await fetch('http://localhost:3001/api/analytics/exercise-performance', { headers });
+      const exerciseRes = await fetch(getApiEndpoint('/analytics/exercise-performance'), { headers });
       if (exerciseRes.ok) {
         const data = await exerciseRes.json();
         setExercisePerf(data.slice(0, 5));

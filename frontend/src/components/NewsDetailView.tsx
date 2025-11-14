@@ -6,6 +6,7 @@ import { Separator } from './ui/separator';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/use-toast';
 import { useAuthToken } from '../hooks/useAuthToken';
+import { getApiEndpoint } from '@/config/api';
 import { 
   ArrowLeft, 
   Heart, 
@@ -95,7 +96,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({ newsId, onBack, 
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`http://localhost:3001/api/news/${newsId}`, {
+      const response = await fetch(getApiEndpoint(`/news/${newsId}`), {
         headers,
       });
 
@@ -125,7 +126,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({ newsId, onBack, 
   const handleLike = async () => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`http://localhost:3001/api/news/${newsId}/like`, {
+      const response = await fetch(getApiEndpoint(`/news/${newsId}/like`), {
         method: 'POST',
         headers,
       });
@@ -162,7 +163,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({ newsId, onBack, 
     setDeleting(true);
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`http://localhost:3001/api/news/${newsId}`, {
+      const response = await fetch(getApiEndpoint(`/news/${newsId}`), {
         method: 'DELETE',
         headers,
       });
