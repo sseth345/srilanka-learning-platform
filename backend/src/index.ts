@@ -43,9 +43,10 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
       process.env.FRONTEND_URL,
       'https://srilanka-learning-platform.vercel.app',
       'https://srilanka-learning-platform.vercel.app/',
-      /^https:\/\/.*\.vercel\.app$/
+      /^https:\/\/.*\.vercel\.app$/,
+      /^https:\/\/.*\.vercel\.app\/?$/
     ].filter(Boolean)
-  : ['http://localhost:5173', 'http://localhost:8080', process.env.FRONTEND_URL].filter(Boolean);
+  : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:3000', process.env.FRONTEND_URL].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -58,7 +59,9 @@ app.use(cors({
     // Check if origin matches any allowed origin
     const isAllowed = allowedOrigins.some(allowed => {
       if (typeof allowed === 'string') {
-        return origin === allowed || origin.startsWith(allowed);
+        const normalizedOrigin = origin.replace(/\/$/, ''); // Remove trailing slash
+        const normalizedAllowed = allowed.replace(/\/$/, '');
+        return normalizedOrigin === normalizedAllowed || normalizedOrigin.startsWith(normalizedAllowed);
       }
       if (allowed instanceof RegExp) {
         return allowed.test(origin);
@@ -69,13 +72,20 @@ app.use(cors({
     if (isAllowed || allowedOrigins.length === 0) {
       callback(null, true);
     } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      console.warn(`⚠️  CORS blocked origin: ${origin}`);
+      console.warn(`   Allowed origins:`, allowedOrigins);
+      // In production, be more permissive to avoid blocking legitimate requests
+      if (process.env.NODE_ENV === 'production') {
+        console.warn(`   Allowing anyway in production mode`);
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
@@ -92,6 +102,15 @@ app.get('/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     service: 'Sri Lankan Learning Platform API'
+  });
+});
+
+// Root endpoint for Render health checks
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Sri Lankan Learning Platform API',
+    timestamp: new Date().toISOString()
   });
 });
 

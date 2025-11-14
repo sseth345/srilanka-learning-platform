@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { getApiEndpoint } from "@/config/api";
 
 interface BookUploadDialogProps {
   open: boolean;
@@ -109,7 +110,7 @@ export const BookUploadDialog = ({
       uploadFormData.append("subject", formData.subject || "");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/books/upload`,
+        getApiEndpoint('/books/upload'),
         {
           method: "POST",
           headers: {
@@ -120,7 +121,10 @@ export const BookUploadDialog = ({
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        if (response.status === 502) {
+          throw new Error("Backend is starting up. Please wait a moment and try again.");
+        }
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to upload book");
       }
 
@@ -141,7 +145,11 @@ export const BookUploadDialog = ({
       onUploadSuccess();
     } catch (error: any) {
       console.error("Error uploading book:", error);
-      toast.error(error.message || "Failed to upload book");
+      if (error.message?.includes("NetworkError") || error.message?.includes("Failed to fetch") || error.message?.includes("starting up")) {
+        toast.warning("Backend is starting up. Please wait a moment and try again.");
+      } else {
+        toast.error(error.message || "Failed to upload book");
+      }
     } finally {
       setUploading(false);
     }

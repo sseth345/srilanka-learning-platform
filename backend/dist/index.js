@@ -25,7 +25,10 @@ const app = (0, express_1.default)();
 const BASE_PORT = Number(process.env.PORT) || 3001;
 const MAX_PORT_SCAN = Number(process.env.PORT_SCAN_RANGE || 5);
 // Security middleware
-app.use((0, helmet_1.default)());
+app.use((0, helmet_1.default)({
+    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+    crossOriginEmbedderPolicy: false,
+}));
 // Rate limiting
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -34,15 +37,49 @@ const limiter = (0, express_rate_limit_1.default)({
 });
 app.use(limiter);
 // CORS configuration
+const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? [
+        process.env.FRONTEND_URL,
+        'https://srilanka-learning-platform.vercel.app',
+        'https://srilanka-learning-platform.vercel.app/',
+        /^https:\/\/.*\.vercel\.app$/
+    ].filter(Boolean)
+    : ['http://localhost:5173', 'http://localhost:8080', process.env.FRONTEND_URL].filter(Boolean);
 app.use((0, cors_1.default)({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) {
+            callback(null, true);
+            return;
+        }
+        // Check if origin matches any allowed origin
+        const isAllowed = allowedOrigins.some(allowed => {
+            if (typeof allowed === 'string') {
+                return origin === allowed || origin.startsWith(allowed);
+            }
+            if (allowed instanceof RegExp) {
+                return allowed.test(origin);
+            }
+            return false;
+        });
+        if (isAllowed || allowedOrigins.length === 0) {
+            callback(null, true);
+        }
+        else {
+            console.warn(`CORS blocked origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 // Logging
 app.use((0, morgan_1.default)('combined'));
-// Body parsing middleware
-app.use(express_1.default.json({ limit: '10mb' }));
-app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsing middleware - increased limits for video uploads
+app.use(express_1.default.json({ limit: '550mb' }));
+app.use(express_1.default.urlencoded({ extended: true, limit: '550mb' }));
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({
@@ -83,6 +120,9 @@ const startServer = (port, attemptsLeft) => {
         console.log(`📚 Sri Lankan Learning Platform API`);
         console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
     });
+    // Increase timeout for large file uploads (15 minutes)
+    server.timeout = 900000;
+    server.keepAliveTimeout = 65000;
     server.on('error', (err) => {
         if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
             console.warn(`⚠️  Port ${port} is in use. Trying port ${port + 1}...`);

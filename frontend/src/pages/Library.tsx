@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { BookUploadDialog } from "@/components/BookUploadDialog";
+import { getApiEndpoint } from "@/config/api";
 
 interface Book {
   id: string;
@@ -66,31 +67,41 @@ const Library = () => {
   const isTeacher = userProfile?.role === "teacher";
 
   const fetchBooks = async () => {
-    const headers = await getAuthHeaders();
+    try {
+      const headers = await getAuthHeaders();
 
-    const params = new URLSearchParams();
-    if (selectedCategory !== "all") params.append("category", selectedCategory);
-    if (selectedSubject !== "all") params.append("subject", selectedSubject);
-    if (searchTerm) params.append("search", searchTerm);
+      const params = new URLSearchParams();
+      if (selectedCategory !== "all") params.append("category", selectedCategory);
+      if (selectedSubject !== "all") params.append("subject", selectedSubject);
+      if (searchTerm) params.append("search", searchTerm);
 
-    const response = await fetch(
-      `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/books?${params}`,
-      {
-        headers,
+      const response = await fetch(
+        `${getApiEndpoint('/books')}?${params}`,
+        {
+          headers,
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 502) {
+          throw new Error("Backend is starting up. Please wait a moment and try again.");
+        }
+        throw new Error("Failed to fetch books");
       }
-    );
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch books");
+      const data = await response.json();
+      setBooks(
+        data.map((book: any) => ({
+          ...book,
+          createdAt: new Date(book.createdAt),
+        }))
+      );
+    } catch (error: any) {
+      if (error.message?.includes("NetworkError") || error.message?.includes("Failed to fetch")) {
+        throw new Error("Backend is starting up. Please wait a moment and try again.");
+      }
+      throw error;
     }
-
-    const data = await response.json();
-    setBooks(
-      data.map((book: any) => ({
-        ...book,
-        createdAt: new Date(book.createdAt),
-      }))
-    );
   };
 
   useEffect(() => {
@@ -98,7 +109,9 @@ const Library = () => {
     fetchBooks()
       .catch((error) => {
         console.error("Error fetching books:", error);
-       
+        if (error.message?.includes("starting up")) {
+          toast.warning("Backend is starting up. Please wait a moment...");
+        }
       })
       .finally(() => setLoading(false));
   }, [selectedCategory, selectedSubject]);
@@ -113,7 +126,7 @@ const Library = () => {
 
       // Track download
       await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/books/${book.id}/download`,
+        getApiEndpoint(`/books/${book.id}/download`),
         {
           method: "POST",
           headers,
@@ -147,7 +160,7 @@ const Library = () => {
       const headers = await getAuthHeaders();
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/books/${bookToDelete}`,
+        getApiEndpoint(`/books/${bookToDelete}`),
         {
           method: "DELETE",
           headers,
