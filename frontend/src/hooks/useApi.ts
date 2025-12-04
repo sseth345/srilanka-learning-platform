@@ -43,10 +43,19 @@ export const useApi = () => {
       // Add authorization header if required
       if (requireAuth) {
         try {
-          const token = await getIdToken();
+          const token = await getIdToken(false); // Don't force refresh to avoid quota issues
           requestHeaders.Authorization = `Bearer ${token}`;
-        } catch (error) {
+        } catch (error: any) {
           console.error('Failed to get ID token:', error);
+          
+          // Handle quota exceeded error specifically
+          if (error?.code === 'auth/quota-exceeded' || error?.message?.includes('quota')) {
+            return {
+              error: 'Firebase quota exceeded. Please try again in a few minutes.',
+              loading: false
+            };
+          }
+          
           return {
             error: 'Authentication required',
             loading: false

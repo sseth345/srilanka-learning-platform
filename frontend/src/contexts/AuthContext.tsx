@@ -215,10 +215,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Get Firebase ID token
-  const getIdToken = async (): Promise<string> => {
+  // Get Firebase ID token (with caching to reduce quota usage)
+  const getIdToken = async (forceRefresh = false): Promise<string> => {
     if (!user) throw new Error('No user logged in');
-    return await user.getIdToken();
+    
+    try {
+      // Don't force refresh unless explicitly requested to avoid quota issues
+      return await user.getIdToken(forceRefresh);
+    } catch (error: any) {
+      // Handle quota exceeded error
+      if (error?.code === 'auth/quota-exceeded') {
+        console.warn('Firebase quota exceeded. Using cached token if available.');
+        // Try without force refresh
+        try {
+          return await user.getIdToken(false);
+        } catch (retryError) {
+          throw new Error('Firebase quota exceeded. Please try again later.');
+        }
+      }
+      throw error;
+    }
   };
 
   // Sign in with email and password
