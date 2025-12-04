@@ -12,6 +12,8 @@ import {
   User,
   Settings,
   Users,
+  ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -84,6 +86,47 @@ export const DashboardSidebar = () => {
             <span className="font-medium">{link.label}</span>
           </NavLink>
         ))}
+        
+        {/* External Links Section */}
+        <div className="pt-4 mt-4 border-t border-border/50">
+          <div className="px-4 mb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              External Resources
+            </span>
+          </div>
+          <a
+            href="https://diicii-stack-smash.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 group",
+              "hover:bg-muted/80 text-foreground hover:translate-x-1"
+            )}
+          >
+            <Gamepad2 className={cn(
+              "h-5 w-5 transition-transform",
+              "group-hover:scale-110"
+            )} />
+            <span className="font-medium">Diicii Game</span>
+            <ExternalLink className="h-4 w-4 ml-auto opacity-60" />
+          </a>
+          <a
+            href="https://tamil-pronunication-app.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 group",
+              "hover:bg-muted/80 text-foreground hover:translate-x-1"
+            )}
+          >
+            <Sparkles className={cn(
+              "h-5 w-5 transition-transform",
+              "group-hover:scale-110"
+            )} />
+            <span className="font-medium">Tamil Pronunciation</span>
+            <ExternalLink className="h-4 w-4 ml-auto opacity-60" />
+          </a>
+        </div>
       </nav>
       
       {/* User Profile Section */}

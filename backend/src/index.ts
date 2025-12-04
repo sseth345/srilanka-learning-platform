@@ -145,28 +145,32 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-const startServer = (port: number, attemptsLeft: number) => {
-  const server = app.listen(port, () => {
-    console.log(`🚀 Server running on port ${port}`);
-    console.log(`📚 Sri Lankan Learning Platform API`);
-    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
+// Only start server if not running as Vercel serverless function
+// Vercel sets VERCEL environment variable
+if (!process.env.VERCEL) {
+  const startServer = (port: number, attemptsLeft: number) => {
+    const server = app.listen(port, () => {
+      console.log(`🚀 Server running on port ${port}`);
+      console.log(`📚 Sri Lankan Learning Platform API`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
 
-  // Increase timeout for large file uploads (15 minutes)
-  server.timeout = 900000;
-  server.keepAliveTimeout = 65000;
+    // Increase timeout for large file uploads (15 minutes)
+    server.timeout = 900000;
+    server.keepAliveTimeout = 65000;
 
-  server.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
-      console.warn(`⚠️  Port ${port} is in use. Trying port ${port + 1}...`);
-      setTimeout(() => startServer(port + 1, attemptsLeft - 1), 500);
-    } else {
-      console.error('❌ Failed to start server:', err);
-      process.exit(1);
-    }
-  });
-};
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+        console.warn(`⚠️  Port ${port} is in use. Trying port ${port + 1}...`);
+        setTimeout(() => startServer(port + 1, attemptsLeft - 1), 500);
+      } else {
+        console.error('❌ Failed to start server:', err);
+        process.exit(1);
+      }
+    });
+  };
 
-startServer(BASE_PORT, MAX_PORT_SCAN);
+  startServer(BASE_PORT, MAX_PORT_SCAN);
+}
 
 export default app;
