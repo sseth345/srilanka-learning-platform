@@ -80,43 +80,22 @@
 
 ### Variable 5: FIREBASE_PRIVATE_KEY_ID
 - **Key:** `FIREBASE_PRIVATE_KEY_ID`
-- **Value:** `ead838fcfcc9f7ef6f029a30fb6b985563c73cfb`
+- **Value:** `your-private-key-id` (Firebase service account JSON se)
 - **Environment:** ✅ Production, ✅ Preview, ✅ Development
 
 ### Variable 6: FIREBASE_PRIVATE_KEY ⚠️ IMPORTANT!
 - **Key:** `FIREBASE_PRIVATE_KEY`
-- **Value:** (Yeh multiline hai, carefully copy karo)
+- **Value:** (Yeh multiline hai, apna Firebase private key paste karo)
   ```
   -----BEGIN PRIVATE KEY-----
-  MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCV3pPu4Tk9gcWe
-  ITdebvQtrbHqooXKpz2aUc1Xe+uforNSfQhmLVliLszkNcLNp398shovsyEQox30
-  JGteHGWA2aLy7+wyfs9uqRDlAOjWR5x6+crI67cg0eBPR7FtvqI2OheU0ACP4TVo
-  jptt2+vj3Jg7Av7+zyKg1uXXji7aSK2IuN9jRStE8ozPYL41SOMuisDgq1w/n1TA
-  TUfxAAXrDl+Fx9wyin/Cr9RoYCHFSgkcRPBJaBUo6naMMoqbW5d8T/msGa0zJBmP
-  khVYDx4uBH3l1yo1csePe6XEhZr7GasTABlC50BaJZCZAGj2hozBq8GF76FKNmvG
-  e/Q/y199AgMBAAECggEAAVzDW//MoShBl2Ema3OXQSYL0L32+ONhzjoRo4qzFuGn
-  /yc3URR29EtIHgf2FCACauwEjGv0sD3HWy2Mk0+vRYdU8Z/oNgJMmO0tA+Po+e+v
-  Nrf4FbD82m3F+/qDHKQHvfXzumzUoHoz3dY0CADgiVL7SEgL8N2Jq0wgzT+T4fSV
-  HJ7miJeWdKrYbkyRHWQnLGgWerdygw4Bgo3sKxj9LiUQz9lfUKAIwXohsKGCXhuq
-  aoJfMGr9Re8HMBVdUfVQ/e4Hl4s04Y6KaXg76KaHkh9CPtQa6qyFgzqrICs/sAoA
-  2+IX7HpUDVHD1DfjrbVU5do0Cf8kvCQg2odJ3a9SgQKBgQDNLLo3+cVBroEk0h0p
-  8VGpi0ZT4qtOB5Ds3BxDiUgZlTrM6E7bCQ3nvmx+wluampR8zgEYZS4yV7tKlDHJ
-  4kXQY4dR4dMIVXxfmNtosiiKGFOmLEVXCf5TGacXYSBVrMte+BbOasJun1p/tMaT
-  k20le10cmsYnAlgZBUJUDr1O/QKBgQC6/qKFrtiFCIJWaqBTgTEZ0EZNEBReW+3v
-  VOl7bSEwtYvUZb76EqtgQcKQg3KkVjP64YgwgJBj+moY5/lGOWcDsAhZxCG4oHR/
-  MkXtef1CDWJ6ObADm2vH0uRpEsV65V/aENVkz6f5vJc43Jy2FWy4u66frRkMlQ9r
-  gNCbXmp6gQKBgQCKbcgCZkGhbBRz/FNy7f9T7cT4afF8RvyP4n4rTt9Xa2jtwTsa
-  60P3fHIFICrf57WRcwgoJnQBwVF7Ivtoo4LI863kIAHbGJo+gYpfW/ygF4OwlSP/
-  cp2mAaPL0VsYkunv3GC+yib+rgNIMHbeMNSuOkp7Ny3EOf+oefTjc8JkHQKBgQCk
-  BG1xbKemKIyKWARAunTi+3huZ8g169SLtKMHC/Wsz9DSgFw+5NlFGOkb8PBBjQsS
-  53eZc2szBpbBOde/7OGarnDkq9AYLUWBvArx/apSoYLbSnZE87JaF3UZZMmqvj6Q
-  +2rxfeMMfor16Svb2nb+okDM9fueubBIzzgqz2n+AQKBgQCiCvYz7T3w8ZV518j5
-  zBwxBvNw985fj6Gw9K6gRDN5wEL6DKzq0v9HZzrdkdZFFgznlJh8Zz8+GPToTIUU
-  1KFeZR2O4yg1W/vjda1pmU2jEO3ovwY3J4P0h6/BdQinsAI/scv1XKkhCGyyb4kM
-  l0kkczcFt1gx6KGLLA1DrkM26Q==
+  YOUR_PRIVATE_KEY_HERE
+  (Firebase Console se service account JSON file me se copy karo)
   -----END PRIVATE KEY-----
   ```
 - ⚠️ **IMPORTANT**: 
+  - ⚠️ **SECURITY**: Apna actual private key paste karo (yeh file me example nahi hai)
+  - Firebase Console → Project Settings → Service Accounts → Generate new private key
+  - Downloaded JSON file me `private_key` field se copy karo
   - Multiline text ko as-is paste karo
   - `\n` characters ko manually add nahi karna
   - Vercel multiline text handle karta hai
@@ -124,27 +103,27 @@
 
 ### Variable 7: FIREBASE_CLIENT_EMAIL
 - **Key:** `FIREBASE_CLIENT_EMAIL`
-- **Value:** `firebase-adminsdk-fbsvc@srilankan-project.iam.gserviceaccount.com`
+- **Value:** `firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com` (Firebase service account JSON se)
 - **Environment:** ✅ Production, ✅ Preview, ✅ Development
 
 ### Variable 8: FIREBASE_CLIENT_ID
 - **Key:** `FIREBASE_CLIENT_ID`
-- **Value:** `113675232994824571570`
+- **Value:** `your-client-id` (Firebase service account JSON se)
 - **Environment:** ✅ Production, ✅ Preview, ✅ Development
 
 ### Variable 9: CLOUDINARY_CLOUD_NAME
 - **Key:** `CLOUDINARY_CLOUD_NAME`
-- **Value:** `dz6bfwgry`
+- **Value:** `your-cloudinary-cloud-name` (Cloudinary dashboard se)
 - **Environment:** ✅ Production, ✅ Preview, ✅ Development
 
 ### Variable 10: CLOUDINARY_API_KEY
 - **Key:** `CLOUDINARY_API_KEY`
-- **Value:** `967858191613995`
+- **Value:** `your-cloudinary-api-key` (Cloudinary dashboard se)
 - **Environment:** ✅ Production, ✅ Preview, ✅ Development
 
 ### Variable 11: CLOUDINARY_API_SECRET
 - **Key:** `CLOUDINARY_API_SECRET`
-- **Value:** `hmnMp4SNpA95M-bO2R9dDkO2d4M`
+- **Value:** `your-cloudinary-api-secret` (Cloudinary dashboard se)
 - **Environment:** ✅ Production, ✅ Preview, ✅ Development
 
 ---
