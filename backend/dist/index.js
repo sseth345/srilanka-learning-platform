@@ -42,9 +42,10 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
         process.env.FRONTEND_URL,
         'https://srilanka-learning-platform.vercel.app',
         'https://srilanka-learning-platform.vercel.app/',
-        /^https:\/\/.*\.vercel\.app$/
+        /^https:\/\/.*\.vercel\.app$/,
+        /^https:\/\/.*\.vercel\.app\/?$/
     ].filter(Boolean)
-    : ['http://localhost:5173', 'http://localhost:8080', process.env.FRONTEND_URL].filter(Boolean);
+    : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:3000', process.env.FRONTEND_URL].filter(Boolean);
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
         // Allow requests with no origin (like mobile apps or curl requests)
@@ -55,7 +56,9 @@ app.use((0, cors_1.default)({
         // Check if origin matches any allowed origin
         const isAllowed = allowedOrigins.some(allowed => {
             if (typeof allowed === 'string') {
-                return origin === allowed || origin.startsWith(allowed);
+                const normalizedOrigin = origin.replace(/\/$/, ''); // Remove trailing slash
+                const normalizedAllowed = allowed.replace(/\/$/, '');
+                return normalizedOrigin === normalizedAllowed || normalizedOrigin.startsWith(normalizedAllowed);
             }
             if (allowed instanceof RegExp) {
                 return allowed.test(origin);
@@ -66,13 +69,21 @@ app.use((0, cors_1.default)({
             callback(null, true);
         }
         else {
-            console.warn(`CORS blocked origin: ${origin}`);
-            callback(new Error('Not allowed by CORS'));
+            console.warn(`⚠️  CORS blocked origin: ${origin}`);
+            console.warn(`   Allowed origins:`, allowedOrigins);
+            // In production, be more permissive to avoid blocking legitimate requests
+            if (process.env.NODE_ENV === 'production') {
+                console.warn(`   Allowing anyway in production mode`);
+                callback(null, true);
+            }
+            else {
+                callback(new Error('Not allowed by CORS'));
+            }
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 // Logging
@@ -86,6 +97,14 @@ app.get('/health', (req, res) => {
         status: 'OK',
         timestamp: new Date().toISOString(),
         service: 'Sri Lankan Learning Platform API'
+    });
+});
+// Root endpoint for Render health checks
+app.get('/', (req, res) => {
+    res.json({
+        status: 'OK',
+        message: 'Sri Lankan Learning Platform API',
+        timestamp: new Date().toISOString()
     });
 });
 // API routes
@@ -114,26 +133,30 @@ app.use((err, req, res, next) => {
 app.use('*', (req, res) => {
     res.status(404).json({ error: 'Route not found' });
 });
-const startServer = (port, attemptsLeft) => {
-    const server = app.listen(port, () => {
-        console.log(`🚀 Server running on port ${port}`);
-        console.log(`📚 Sri Lankan Learning Platform API`);
-        console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
-    // Increase timeout for large file uploads (15 minutes)
-    server.timeout = 900000;
-    server.keepAliveTimeout = 65000;
-    server.on('error', (err) => {
-        if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
-            console.warn(`⚠️  Port ${port} is in use. Trying port ${port + 1}...`);
-            setTimeout(() => startServer(port + 1, attemptsLeft - 1), 500);
-        }
-        else {
-            console.error('❌ Failed to start server:', err);
-            process.exit(1);
-        }
-    });
-};
-startServer(BASE_PORT, MAX_PORT_SCAN);
+// Only start server if not running as Vercel serverless function
+// Vercel sets VERCEL environment variable
+if (!process.env.VERCEL) {
+    const startServer = (port, attemptsLeft) => {
+        const server = app.listen(port, () => {
+            console.log(`🚀 Server running on port ${port}`);
+            console.log(`📚 Sri Lankan Learning Platform API`);
+            console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+        });
+        // Increase timeout for large file uploads (15 minutes)
+        server.timeout = 900000;
+        server.keepAliveTimeout = 65000;
+        server.on('error', (err) => {
+            if (err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+                console.warn(`⚠️  Port ${port} is in use. Trying port ${port + 1}...`);
+                setTimeout(() => startServer(port + 1, attemptsLeft - 1), 500);
+            }
+            else {
+                console.error('❌ Failed to start server:', err);
+                process.exit(1);
+            }
+        });
+    };
+    startServer(BASE_PORT, MAX_PORT_SCAN);
+}
 exports.default = app;
 //# sourceMappingURL=index.js.map

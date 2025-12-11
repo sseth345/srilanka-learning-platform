@@ -1,0 +1,1 @@
+{"version":3,"file":"ratelimiter.js","sourceRoot":"","sources":["../../src/middleware/ratelimiter.ts"],"names":[],"mappings":";;;;;;AAAA,gCAAgC;AAChC,4EAA2C;AAE9B,QAAA,UAAU,GAAG,IAAA,4BAAS,EAAC;IAClC,QAAQ,EAAE,EAAE,GAAG,IAAI,EAAE,aAAa;IAClC,GAAG,EAAE,EAAE,EAAc,wCAAwC;IAC7D,OAAO,EAAE;QACP,KAAK,EAAE,+BAA+B;KACvC;IACD,eAAe,EAAE,IAAI;IACrB,aAAa,EAAE,KAAK;CACrB,CAAC,CAAC"}

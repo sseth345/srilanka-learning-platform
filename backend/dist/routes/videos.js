@@ -275,33 +275,26 @@ router.post('/upload', auth_1.authenticateToken, (0, auth_1.requireRole)('teache
         });
     }
 });
-// Get videos list
+// Get all videos ONCE — no filtering (frontend does filtering)
 router.get('/', auth_1.authenticateToken, async (req, res) => {
     try {
-        const { category, search, limit = 50, offset = 0 } = req.query;
-        let query = firebase_1.db.collection('videos').orderBy('createdAt', 'desc');
-        const snapshot = await query.get();
-        let videos = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-        }));
-        if (category) {
-            videos = videos.filter((video) => video.category === category);
-        }
-        if (search) {
-            const searchTerm = search.toLowerCase();
-            videos = videos.filter((video) => [video.title, video.description, video.category, video.uploadedByName]
-                .filter(Boolean)
-                .some((field) => field.toLowerCase().includes(searchTerm)));
-        }
-        const startIndex = Number(offset);
-        const endIndex = startIndex + Number(limit);
-        const paginatedVideos = videos.slice(startIndex, endIndex).map((video) => ({
-            ...video,
-            createdAt: video.createdAt?.toDate?.() ?? video.createdAt,
-            updatedAt: video.updatedAt?.toDate?.() ?? video.updatedAt,
-        }));
-        res.json(paginatedVideos);
+        const snapshot = await firebase_1.db
+            .collection('videos')
+            .orderBy('createdAt', 'desc')
+            .get();
+        const videos = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt?.toDate?.() ?? data.createdAt,
+                updatedAt: data.updatedAt?.toDate?.() ?? data.updatedAt,
+            };
+        });
+        // Cache headers (Render will LOVE this)
+        res.set('Cache-Control', 'public, max-age=60'); // 1 minute cache
+        res.set('ETag', `"${snapshot.size}-${snapshot.readTime.toMillis()}"`);
+        res.json(videos);
     }
     catch (error) {
         console.error('Error fetching videos:', error);

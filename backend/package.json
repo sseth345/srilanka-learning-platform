@@ -34,7 +34,6 @@
     "typescript": "^5.7.2"
   },
   "devDependencies": {
-    "redis": "^4.6.13",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/morgan": "^1.9.9",
