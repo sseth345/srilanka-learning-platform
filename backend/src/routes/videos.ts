@@ -309,47 +309,35 @@ router.post(
   }
 );
 
-// Get videos list
+// Get all videos ONCE — no filtering (frontend does filtering)
 router.get('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { category, search, limit = 50, offset = 0 } = req.query;
+    const snapshot = await db
+      .collection('videos')
+      .orderBy('createdAt', 'desc')
+      .get();
 
-    let query: FirebaseFirestore.Query = db.collection('videos').orderBy('createdAt', 'desc');
+    const videos = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.() ?? data.createdAt,
+        updatedAt: data.updatedAt?.toDate?.() ?? data.updatedAt,
+      };
+    });
 
-    const snapshot = await query.get();
+    // Cache headers (Render will LOVE this)
+    res.set('Cache-Control', 'public, max-age=60'); // 1 minute cache
+    res.set('ETag', `"${snapshot.size}-${snapshot.readTime.toMillis()}"`);
 
-    let videos = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    if (category) {
-      videos = videos.filter((video: any) => video.category === category);
-    }
-
-    if (search) {
-      const searchTerm = (search as string).toLowerCase();
-      videos = videos.filter((video: any) =>
-        [video.title, video.description, video.category, video.uploadedByName]
-          .filter(Boolean)
-          .some((field: string) => field.toLowerCase().includes(searchTerm))
-      );
-    }
-
-    const startIndex = Number(offset);
-    const endIndex = startIndex + Number(limit);
-    const paginatedVideos = videos.slice(startIndex, endIndex).map((video: any) => ({
-      ...video,
-      createdAt: video.createdAt?.toDate?.() ?? video.createdAt,
-      updatedAt: video.updatedAt?.toDate?.() ?? video.updatedAt,
-    }));
-
-    res.json(paginatedVideos);
+    res.json(videos);
   } catch (error) {
     console.error('Error fetching videos:', error);
     res.status(500).json({ error: 'Failed to fetch videos' });
   }
 });
+
 
 // Get video details and increment views
 router.get('/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {

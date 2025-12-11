@@ -1,5 +1,5 @@
 // src/pages/Videos.tsx
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Play, Clock, Eye, Trash2, Plus, Search, Loader2 } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,238 +29,125 @@ import { VideoUploadDialog } from "@/components/VideoUploadDialog";
 import { VideoPlayerDialog } from "@/components/VideoPlayerDialog";
 import { getApiEndpoint } from "@/config/api";
 
-/* ------------------ utilities ------------------ */
+const PAGE_SIZE = 20;
+
+/* ------------------ utility ------------------ */
 const formatDuration = (seconds?: number) => {
   if (!seconds && seconds !== 0) return "00:00";
-  const hrs = Math.floor((seconds || 0) / 3600);
-  const mins = Math.floor(((seconds || 0) % 3600) / 60);
+  const mins = Math.floor((seconds || 0) / 60);
   const secs = Math.floor((seconds || 0) % 60);
-  return hrs > 0
-    ? `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs
-        .toString()
-        .padStart(2, "0")}`
-    : `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 };
-
-/* ------------------ debounce hook ------------------ */
-function useDebounce<T>(value: T, delay = 400) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(id);
-  }, [value, delay]);
-  return debounced;
-}
-
-/* ------------------ main component ------------------ */
-const PAGE_SIZE = 20;
 
 const Videos: React.FC = () => {
   const { userProfile } = useAuth();
   const { getAuthHeaders } = useAuthToken();
+  const isTeacher = userProfile?.role === "teacher";
 
-  // core data
-  const [videos, setVideos] = useState<any[]>([]);
+  /* ------------------ DATA ------------------ */
+  const [allVideos, setAllVideos] = useState<any[]>([]);
+  const [displayVideos, setDisplayVideos] = useState<any[]>([]);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
 
-  // UI
+  /* ------------------ UI ------------------ */
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const debouncedSearch = useDebounce(searchTerm, 400);
 
-  // dialogs / actions
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState<any | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<any>(null);
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const isTeacher = userProfile?.role === "teacher";
-
-  /* ---- stable refs so fetch function stays identical across renders ---- */
-  const authRef = useRef(getAuthHeaders);
-  useEffect(() => {
-    authRef.current = getAuthHeaders;
-  }, [getAuthHeaders]);
-
-  // abort controller ref for cancelling inflight fetches
-  const abortRef = useRef<AbortController | null>(null);
-
-  // detect identical repeated requests: key by category+search+offset
-  const lastRequestKeyRef = useRef<string | null>(null);
-
-  // prevents initial double-call if layout mounts/unmounts quickly
-  const mountedRef = useRef(false);
-
-  /* ------------------ fetch function (stable) ------------------ */
-  // intentionally no deps so it's referentially stable
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const fetchVideos = useCallback(
-    async ({ offset = 0, append = false, showLoading = true } = {}) => {
-      const category = selectedCategory;
-      const search = debouncedSearch;
-      const pageSize = PAGE_SIZE;
-      const requestKey = `${category}::${search}::${offset}`;
-
-      // dedupe identical inflight or recent requests
-      if (lastRequestKeyRef.current === requestKey) {
-        // nothing to do — prevents redundant fetches
-        return;
-      }
-      lastRequestKeyRef.current = requestKey;
-
-      // cancel previous controller
-      if (abortRef.current) {
-        try {
-          abortRef.current.abort();
-        } catch {}
-      }
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      if (showLoading) {
-        offset === 0 ? setLoading(true) : setLoadingMore(true);
-      }
-
-      try {
-        const headers = await authRef.current(); // stable getter
-        const params = new URLSearchParams();
-        params.set("limit", String(pageSize));
-        params.set("offset", String(offset));
-        if (category && category !== "all") params.set("category", category);
-        if (search) params.set("search", search);
-
-        const url = `${getApiEndpoint("/videos")}?${params.toString()}`;
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers,
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          // log non-200 but don't crash UI
-          console.warn("Videos fetch non-OK", res.status, await res.text().catch(()=>""));
-          return;
-        }
-
-        const json = await res.json();
-
-        // normalise createdAt if Firestore timestamps (string or object with toDate)
-        const normalized = (json || []).map((v: any) => ({
-          ...v,
-          createdAt: v.createdAt?.toDate ? v.createdAt.toDate() : v.createdAt ? new Date(v.createdAt) : new Date(),
-          updatedAt: v.updatedAt?.toDate ? v.updatedAt.toDate() : v.updatedAt ? new Date(v.updatedAt) : undefined,
-        }));
-
-        // set state: avoid unnecessary re-renders when identical
-        setVideos((prev) => {
-          if (!append) {
-            // shallow compare by length and ids
-            const same =
-              prev.length === normalized.length &&
-              prev.every((p, i) => p.id === normalized[i]?.id);
-            if (same) return prev;
-            return normalized;
-          } else {
-            // append: avoid duplicates
-            const combined = [...prev];
-            for (const it of normalized) {
-              if (!combined.find((x) => x.id === it.id)) combined.push(it);
-            }
-            return combined;
-          }
-        });
-
-        // detect if there may be more (server may return less than requested)
-        setHasMore((json || []).length >= pageSize);
-      } catch (err: any) {
-        if (err?.name === "AbortError") {
-          // expected when cancelling - ignore
-        } else {
-          console.error("Error fetching videos:", err);
-          // surface a minimal toast but don't spam
-          toast.error("Failed to fetch videos");
-        }
-      } finally {
-        if (showLoading) {
-          offset === 0 ? setLoading(false) : setLoadingMore(false);
-        }
-        // allow new identical requests in future cycles
-        setTimeout(() => {
-          lastRequestKeyRef.current = null;
-        }, 200);
-      }
-    },
-    // intentionally not depending on getAuthHeaders so function is stable
-    // selectedCategory and debouncedSearch are read from outer scope each call
-    []
-  );
-
-  /* ------------------ initial + filter effect ------------------ */
-  // Only run fetch on mount and when debounced search or category changes.
-  useEffect(() => {
-    // prevent double-run pattern when component mount/unmount quickly
-    if (!mountedRef.current) mountedRef.current = true;
-
-    // always fetch page 0 when filters change
-    fetchVideos({ offset: 0, append: false, showLoading: true });
-
-    // cleanup on unmount: abort running request
-    return () => {
-      if (abortRef.current) {
-        abortRef.current.abort();
-      }
-    };
-    // We intentionally only depend on debouncedSearch and selectedCategory here
-    // fetchVideos is stable via useCallback above.
-  }, [selectedCategory, debouncedSearch, fetchVideos]);
-
-  /* ------------------ load more ------------------ */
-  const loadMore = async () => {
-    if (loadingMore) return;
-    const offset = videos.length;
-    await fetchVideos({ offset, append: true, showLoading: true });
-  };
-
-  /* ------------------ play video (safe) ------------------ */
-  const handlePlayVideo = async (video: any) => {
+  /* ------------------ LOAD ALL VIDEOS ONCE ------------------ */
+  const loadVideosOnce = async () => {
     try {
-      // optimistic stream URL fallback
-      let streamingUrl = video.streamingUrl;
+      setLoading(true);
+      const headers = await getAuthHeaders();
 
-      // try to update view count & get streaming url from server
-      try {
-        const headers = await authRef.current();
-        const res = await fetch(getApiEndpoint(`/videos/${video.id}/view`), {
-          method: "POST",
-          headers,
-        });
+      const res = await fetch(getApiEndpoint("/videos"), {
+        method: "GET",
+        headers,
+      });
 
-        if (res.ok) {
-          const data = await res.json();
-          streamingUrl = data.streamingUrl || streamingUrl;
-        }
-      } catch (err) {
-        // network/view update failed — proceed with fallback streamingUrl
-        console.warn("View update failed:", err);
-      }
+      if (!res.ok) throw new Error("Failed to fetch videos");
 
-      setSelectedVideo({ ...video, streamingUrl });
-      setPlayerOpen(true);
-
-      // Background refresh (non-blocking, won't set global loading)
-      fetchVideos({ offset: 0, append: false, showLoading: false });
+      const json = await res.json();
+      setAllVideos(json);
+      setDisplayVideos(json.slice(0, PAGE_SIZE));
+      setLoading(false);
     } catch (err) {
-      console.error("Failed to play video:", err);
-      toast.error("Failed to play video");
+      console.error(err);
+      toast.error("Unable to load videos");
+      setLoading(false);
     }
   };
 
-  /* ------------------ delete video ------------------ */
+  useEffect(() => {
+    loadVideosOnce(); // ⭐ ONLY ONE REQUEST
+  }, []);
+
+  /* ------------------ LOCAL FILTERING ------------------ */
+  const filteredVideos = useMemo(() => {
+    let arr = [...allVideos];
+
+    if (selectedCategory !== "all") {
+      arr = arr.filter((v) => v.category === selectedCategory);
+    }
+
+    if (searchTerm.trim() !== "") {
+      const s = searchTerm.toLowerCase();
+      arr = arr.filter((v) =>
+        [v.title, v.description, v.category, v.uploadedByName]
+          .filter(Boolean)
+          .some((field) => field.toLowerCase().includes(s))
+      );
+    }
+
+    return arr;
+  }, [allVideos, searchTerm, selectedCategory]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+    setDisplayVideos(filteredVideos.slice(0, PAGE_SIZE));
+  }, [filteredVideos]);
+
+  /* ------------------ LOAD MORE (LOCAL ONLY) ------------------ */
+  const loadMore = () => {
+    const newCount = visibleCount + PAGE_SIZE;
+    setVisibleCount(newCount);
+    setDisplayVideos(filteredVideos.slice(0, newCount));
+  };
+
+  const hasMore = visibleCount < filteredVideos.length;
+
+  /* ------------------ PLAY ------------------ */
+  const handlePlayVideo = async (video: any) => {
+    try {
+      const headers = await getAuthHeaders();
+      let url = video.streamingUrl;
+
+      const res = await fetch(getApiEndpoint(`/videos/${video.id}/view`), {
+        method: "POST",
+        headers,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        url = data.streamingUrl || url;
+      }
+
+      setSelectedVideo({ ...video, streamingUrl: url });
+      setPlayerOpen(true);
+    } catch {
+      toast.error("Failed to load video");
+    }
+  };
+
+  /* ------------------ DELETE ------------------ */
   const confirmDelete = (id: string) => {
     setVideoToDelete(id);
     setDeleteDialogOpen(true);
@@ -269,46 +156,38 @@ const Videos: React.FC = () => {
   const handleDeleteVideo = async () => {
     if (!videoToDelete) return;
     setDeleting(true);
+
     try {
-      const headers = await authRef.current();
+      const headers = await getAuthHeaders();
       const res = await fetch(getApiEndpoint(`/videos/${videoToDelete}`), {
         method: "DELETE",
         headers,
       });
 
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        console.warn("Delete failed:", res.status, body);
-        throw new Error("Delete failed");
-      }
+      if (!res.ok) throw new Error("Delete failed");
 
       toast.success("Video deleted");
+      setAllVideos((prev) => prev.filter((v) => v.id !== videoToDelete));
       setDeleteDialogOpen(false);
       setVideoToDelete(null);
-
-      // refresh first page (not blocking UI)
-      fetchVideos({ offset: 0, append: false, showLoading: false });
-    } catch (err) {
-      console.error("Failed to delete video:", err);
+    } catch {
       toast.error("Failed to delete video");
     } finally {
       setDeleting(false);
     }
   };
 
-  /* ------------------ categories memo ------------------ */
+  /* ------------------ CATEGORIES ------------------ */
   const categories = useMemo(() => {
-    const cats = new Set<string>();
-    videos.forEach((v) => {
-      if (v?.category) cats.add(v.category);
-    });
-    return ["all", ...Array.from(cats)];
-  }, [videos]);
+    const set = new Set<string>();
+    allVideos.forEach((v) => v.category && set.add(v.category));
+    return ["all", ...Array.from(set)];
+  }, [allVideos]);
 
-  /* ------------------ UI render ------------------ */
+  /* ------------------ UI ------------------ */
   return (
     <div className="space-y-6 animate-in">
-      {/* header */}
+      {/* HEADER */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold mb-2">Video Lectures</h1>
@@ -324,7 +203,7 @@ const Videos: React.FC = () => {
         )}
       </div>
 
-      {/* search + filter */}
+      {/* SEARCH + FILTER */}
       <Card className="shadow-elevated border-2">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -333,22 +212,21 @@ const Videos: React.FC = () => {
                 placeholder="Search videos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && fetchVideos({ offset: 0, append: false, showLoading: true })}
                 className="flex-1"
               />
-              <Button onClick={() => fetchVideos({ offset: 0, append: false, showLoading: true })}>
+              <Button>
                 <Search className="h-4 w-4" />
               </Button>
             </div>
 
-            <Select value={selectedCategory} onValueChange={(val) => setSelectedCategory(val)}>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="All categories" />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat === "all" ? "All Categories" : cat}
+                {categories.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c === "all" ? "All Categories" : c}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -357,34 +235,33 @@ const Videos: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* loading */}
+      {/* LOADING */}
       {loading && (
         <Card className="shadow-elevated">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-            <p className="text-sm text-muted-foreground">Loading videos...</p>
+          <CardContent className="flex flex-col items-center py-16">
+            <Loader2 className="h-10 w-10 animate-spin mb-4" />
+            <p>Loading videos...</p>
           </CardContent>
         </Card>
       )}
 
-      {/* no videos */}
-      {!loading && videos.length === 0 && (
-        <Card className="shadow-elevated border-2 border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Play className="h-10 w-10 text-muted-foreground mb-4" />
-            <p className="font-semibold text-lg mb-2">No videos found</p>
-            <p className="text-muted-foreground">{isTeacher ? "Upload your first lecture video" : "No videos available"}</p>
+      {/* NO VIDEOS */}
+      {!loading && displayVideos.length === 0 && (
+        <Card className="shadow-elevated border-2">
+          <CardContent className="flex flex-col items-center py-16">
+            <Play className="h-10 w-10 mb-4 text-muted" />
+            No videos found
           </CardContent>
         </Card>
       )}
 
-      {/* grid */}
-      {!loading && videos.length > 0 && (
+      {/* GRID */}
+      {!loading && displayVideos.length > 0 && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {videos.map((video) => (
-              <Card key={video.id} className="shadow-elevated hover:shadow-xl hover:-translate-y-1 transition-all overflow-hidden border-2">
-                <div className="relative h-56 bg-muted cursor-pointer overflow-hidden" onClick={() => handlePlayVideo(video)}>
+            {displayVideos.map((video) => (
+              <Card key={video.id} className="shadow-elevated hover:shadow-xl transition-all border-2">
+                <div className="relative h-56 bg-muted cursor-pointer" onClick={() => handlePlayVideo(video)}>
                   <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
                   <Badge className="absolute top-3 right-3 bg-black/80 text-white">
                     <Clock className="h-3 w-3 mr-1" />
@@ -398,10 +275,9 @@ const Videos: React.FC = () => {
                   <p className="text-sm text-muted-foreground">Uploaded by {video.uploadedByName}</p>
                 </CardHeader>
 
-                <CardFooter className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground flex gap-2">
-                    <Eye className="h-4 w-4" />
-                    {video.views?.toLocaleString()}
+                <CardFooter className="flex justify-between">
+                  <span className="text-sm text-muted-foreground flex gap-1">
+                    <Eye className="h-4 w-4" /> {video.views?.toLocaleString()}
                   </span>
 
                   <div className="flex gap-2">
@@ -410,7 +286,7 @@ const Videos: React.FC = () => {
                     </Button>
 
                     {isTeacher && video.uploadedBy === userProfile?.uid && (
-                      <Button variant="destructive" size="sm" onClick={() => confirmDelete(video.id)}>
+                      <Button size="sm" variant="destructive" onClick={() => confirmDelete(video.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
@@ -420,12 +296,9 @@ const Videos: React.FC = () => {
             ))}
           </div>
 
-          {/* load more */}
           <div className="flex justify-center mt-6">
             {hasMore ? (
-              <Button onClick={loadMore} disabled={loadingMore}>
-                {loadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Load more
-              </Button>
+              <Button onClick={loadMore}>Load more</Button>
             ) : (
               <p className="text-sm text-muted-foreground">No more videos</p>
             )}
@@ -433,8 +306,12 @@ const Videos: React.FC = () => {
         </>
       )}
 
-      {/* dialogs */}
-      <VideoUploadDialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen} onUploadSuccess={() => fetchVideos({ offset: 0, append: false, showLoading: true })} />
+      {/* DIALOGS */}
+      <VideoUploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        onUploadSuccess={loadVideosOnce}
+      />
 
       <VideoPlayerDialog open={playerOpen} onOpenChange={setPlayerOpen} video={selectedVideo} />
 
