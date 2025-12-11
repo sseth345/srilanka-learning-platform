@@ -49,7 +49,10 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
   : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:3000', process.env.FRONTEND_URL].filter(Boolean);
 
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void
+  ) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
       callback(null, true);
@@ -61,7 +64,10 @@ app.use(cors({
       if (typeof allowed === 'string') {
         const normalizedOrigin = origin.replace(/\/$/, ''); // Remove trailing slash
         const normalizedAllowed = allowed.replace(/\/$/, '');
-        return normalizedOrigin === normalizedAllowed || normalizedOrigin.startsWith(normalizedAllowed);
+        return (
+          normalizedOrigin === normalizedAllowed ||
+          normalizedOrigin.startsWith(normalizedAllowed)
+        );
       }
       if (allowed instanceof RegExp) {
         return allowed.test(origin);
@@ -74,7 +80,8 @@ app.use(cors({
     } else {
       console.warn(`⚠️  CORS blocked origin: ${origin}`);
       console.warn(`   Allowed origins:`, allowedOrigins);
-      // In production, be more permissive to avoid blocking legitimate requests
+
+      // In production, allow anyway to avoid breaking client
       if (process.env.NODE_ENV === 'production') {
         console.warn(`   Allowing anyway in production mode`);
         callback(null, true);
