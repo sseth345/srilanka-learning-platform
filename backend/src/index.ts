@@ -38,60 +38,69 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
-  const allowedOrigins = [
-    process.env.FRONTEND_URL,
-    /^https:\/\/.*vercel\.app$/,
-    /^https:\/\/.*\.vercel\.app$/,
-    /^https:\/\/srilanka-learning-platform.*\.vercel\.app$/
-  ].filter(Boolean);
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  /^https:\/\/.*vercel\.app$/,
+  /^https:\/\/.*\.vercel\.app$/,
+  /^https:\/\/srilanka-learning-platform.*\.vercel\.app$/
+].filter(Boolean);
 
-app.use(cors({
-  origin: (
-    origin: string | undefined,
-    callback: (err: Error | null, allow?: boolean) => void
-  ) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      callback(null, true);
-      return;
-    },
-
-    // Check if origin matches any allowed origin
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (typeof allowed === 'string') {
-        const normalizedOrigin = origin.replace(/\/$/, ''); // Remove trailing slash
-        const normalizedAllowed = allowed.replace(/\/$/, '');
-        return (
-          normalizedOrigin === normalizedAllowed ||
-          normalizedOrigin.startsWith(normalizedAllowed)
-        );
+app.use(
+  cors({
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void
+    ) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        callback(null, true);
+        return;
       }
-      if (allowed instanceof RegExp) {
-        return allowed.test(origin);
-      }
-      return false;
-    });
 
-    if (isAllowed || allowedOrigins.length === 0) {
-      callback(null, true);
-    } else {
-      console.warn(`⚠️  CORS blocked origin: ${origin}`);
-      console.warn(`   Allowed origins:`, allowedOrigins);
+      // Check if origin matches any allowed origin
+      const isAllowed = allowedOrigins.some((allowed) => {
+        if (typeof allowed === "string") {
+          const normalizedOrigin = origin.replace(/\/$/, ""); // Remove trailing slash
+          const normalizedAllowed = allowed.replace(/\/$/, "");
+          return (
+            normalizedOrigin === normalizedAllowed ||
+            normalizedOrigin.startsWith(normalizedAllowed)
+          );
+        }
+        if (allowed instanceof RegExp) {
+          return allowed.test(origin);
+        }
+        return false;
+      });
 
-      // In production, allow anyway to avoid breaking client
-      if (process.env.NODE_ENV === 'production') {
-        console.warn(`   Allowing anyway in production mode`);
+      if (isAllowed || allowedOrigins.length === 0) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        console.warn(`⚠️ CORS blocked origin: ${origin}`);
+        console.warn(`Allowed origins:`, allowedOrigins);
+
+        // In production, allow anyway to avoid breaking client
+        if (process.env.NODE_ENV === "production") {
+          console.warn(`Allowing anyway in production mode`);
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
       }
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range']
-}));
+    },
+
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin"
+    ],
+    exposedHeaders: ["Content-Range", "X-Content-Range"]
+  })
+);
 
 // Logging
 app.use(morgan('combined'));
