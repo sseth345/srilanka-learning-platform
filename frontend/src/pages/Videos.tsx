@@ -1,5 +1,5 @@
 // src/pages/Videos.tsx
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Play, Clock, Eye, Trash2, Plus, Search, Loader2 } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ import { getApiEndpoint } from "@/config/api";
 
 const PAGE_SIZE = 20;
 
-/* ------------------ utility ------------------ */
+/* ------------------ UTILITY ------------------ */
 const formatDuration = (seconds?: number) => {
   if (!seconds && seconds !== 0) return "00:00";
   const mins = Math.floor((seconds || 0) / 60);
@@ -44,25 +44,26 @@ const Videos: React.FC = () => {
   const { getAuthHeaders } = useAuthToken();
   const isTeacher = userProfile?.role === "teacher";
 
-  /* ------------------ DATA ------------------ */
+  /* ------------------ STATE ------------------ */
   const [allVideos, setAllVideos] = useState<any[]>([]);
   const [displayVideos, setDisplayVideos] = useState<any[]>([]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
 
-  /* ------------------ UI ------------------ */
+  /* ------------------ UI STATE ------------------ */
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
-
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  /* ------------------ LOAD ALL VIDEOS ONCE ------------------ */
+  /* ------------------ FETCH GUARD ------------------ */
+  const hasLoaded = useRef(false);
+
+  /* ------------------ FETCH VIDEOS ONCE ------------------ */
   const loadVideosOnce = async () => {
     try {
       setLoading(true);
@@ -76,6 +77,7 @@ const Videos: React.FC = () => {
       if (!res.ok) throw new Error("Failed to fetch videos");
 
       const json = await res.json();
+
       setAllVideos(json);
       setDisplayVideos(json.slice(0, PAGE_SIZE));
       setLoading(false);
@@ -87,10 +89,13 @@ const Videos: React.FC = () => {
   };
 
   useEffect(() => {
-    loadVideosOnce(); // ⭐ ONLY ONE REQUEST
+    if (hasLoaded.current) return;
+    hasLoaded.current = true;
+
+    loadVideosOnce();
   }, []);
 
-  /* ------------------ LOCAL FILTERING ------------------ */
+  /* ------------------ FILTERED RESULTS ------------------ */
   const filteredVideos = useMemo(() => {
     let arr = [...allVideos];
 
@@ -115,7 +120,7 @@ const Videos: React.FC = () => {
     setDisplayVideos(filteredVideos.slice(0, PAGE_SIZE));
   }, [filteredVideos]);
 
-  /* ------------------ LOAD MORE (LOCAL ONLY) ------------------ */
+  /* ------------------ LOAD MORE ------------------ */
   const loadMore = () => {
     const newCount = visibleCount + PAGE_SIZE;
     setVisibleCount(newCount);
@@ -147,7 +152,7 @@ const Videos: React.FC = () => {
     }
   };
 
-  /* ------------------ DELETE ------------------ */
+  /* ------------------ DELETE VIDEO ------------------ */
   const confirmDelete = (id: string) => {
     setVideoToDelete(id);
     setDeleteDialogOpen(true);
@@ -177,7 +182,7 @@ const Videos: React.FC = () => {
     }
   };
 
-  /* ------------------ CATEGORIES ------------------ */
+  /* ------------------ CATEGORY OPTIONS ------------------ */
   const categories = useMemo(() => {
     const set = new Set<string>();
     allVideos.forEach((v) => v.category && set.add(v.category));
@@ -192,7 +197,9 @@ const Videos: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold mb-2">Video Lectures</h1>
           <p className="text-muted-foreground">
-            {isTeacher ? "Upload and manage your lecture recordings" : "Stream recorded lectures anytime"}
+            {isTeacher
+              ? "Upload and manage your lecture recordings"
+              : "Stream recorded lectures anytime"}
           </p>
         </div>
 
@@ -219,7 +226,10 @@ const Videos: React.FC = () => {
               </Button>
             </div>
 
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <Select
+              value={selectedCategory}
+              onValueChange={setSelectedCategory}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="All categories" />
               </SelectTrigger>
@@ -245,7 +255,7 @@ const Videos: React.FC = () => {
         </Card>
       )}
 
-      {/* NO VIDEOS */}
+      {/* EMPTY */}
       {!loading && displayVideos.length === 0 && (
         <Card className="shadow-elevated border-2">
           <CardContent className="flex flex-col items-center py-16">
@@ -260,9 +270,19 @@ const Videos: React.FC = () => {
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {displayVideos.map((video) => (
-              <Card key={video.id} className="shadow-elevated hover:shadow-xl transition-all border-2">
-                <div className="relative h-56 bg-muted cursor-pointer" onClick={() => handlePlayVideo(video)}>
-                  <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
+              <Card
+                key={video.id}
+                className="shadow-elevated hover:shadow-xl transition-all border-2"
+              >
+                <div
+                  className="relative h-56 bg-muted cursor-pointer"
+                  onClick={() => handlePlayVideo(video)}
+                >
+                  <img
+                    src={video.thumbnailUrl}
+                    alt={video.title}
+                    className="w-full h-full object-cover"
+                  />
                   <Badge className="absolute top-3 right-3 bg-black/80 text-white">
                     <Clock className="h-3 w-3 mr-1" />
                     {formatDuration(video.duration)}
@@ -272,7 +292,9 @@ const Videos: React.FC = () => {
                 <CardHeader>
                   <Badge className="mb-2 bg-secondary">{video.category}</Badge>
                   <h3 className="font-bold text-lg">{video.title}</h3>
-                  <p className="text-sm text-muted-foreground">Uploaded by {video.uploadedByName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Uploaded by {video.uploadedByName}
+                  </p>
                 </CardHeader>
 
                 <CardFooter className="flex justify-between">
@@ -286,7 +308,11 @@ const Videos: React.FC = () => {
                     </Button>
 
                     {isTeacher && video.uploadedBy === userProfile?.uid && (
-                      <Button size="sm" variant="destructive" onClick={() => confirmDelete(video.id)}>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => confirmDelete(video.id)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
@@ -313,18 +339,32 @@ const Videos: React.FC = () => {
         onUploadSuccess={loadVideosOnce}
       />
 
-      <VideoPlayerDialog open={playerOpen} onOpenChange={setPlayerOpen} video={selectedVideo} />
+      <VideoPlayerDialog
+        open={playerOpen}
+        onOpenChange={setPlayerOpen}
+        video={selectedVideo}
+      />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete video?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>
+              This action cannot be undone.
+            </AlertDialogDescription>
           </AlertDialogHeader>
+
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>
+              Cancel
+            </AlertDialogCancel>
+
             <AlertDialogAction onClick={handleDeleteVideo} disabled={deleting}>
-              {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Delete"}
+              {deleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

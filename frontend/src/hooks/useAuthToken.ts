@@ -59,4 +59,3 @@ export const useAuthToken = () => {
 
   return { getAuthHeaders };
 };
-

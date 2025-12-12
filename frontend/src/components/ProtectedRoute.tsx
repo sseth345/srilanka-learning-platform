@@ -15,28 +15,35 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { user, userProfile, loading } = useAuth();
   const location = useLocation();
 
-  // 🔥 FIX 1: Wait until BOTH user and userProfile resolve
-  if (loading || (user && !userProfile)) {
+  // Show loading spinner while checking authentication
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-muted-foreground mt-4">Loading account...</p>
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }
 
-  // 🔥 FIX 2: Only redirect AFTER loading completes
-  if (!loading && !user) {
+  // Redirect to auth if not logged in
+  if (!user) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // FIX 3: Role check after profile load
+  // Check role if required
   if (requiredRole && userProfile?.role !== requiredRole) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold text-destructive">Access Denied</h1>
-          <p>You don't have permission to access this page.</p>
+          <p className="text-muted-foreground">
+            You don't have permission to access this page.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Required role: {requiredRole} | Your role: {userProfile?.role || 'Unknown'}
+          </p>
         </div>
       </div>
     );
@@ -44,7 +51,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   return <>{children}</>;
 };
-
 
 // Higher-order component for protected routes
 export const withAuth = <P extends object>(

@@ -3,9 +3,20 @@ import multer from 'multer';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import type { UploadApiResponse } from 'cloudinary';
-import cloudinary from '../config/cloudinary';
+//import cloudinary from '../config/cloudinary';
 import { authenticateToken, requireRole, AuthenticatedRequest } from '../middleware/auth';
 import { db } from '../config/firebase';
+import { v2 as cloudinary } from 'cloudinary';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
+  api_key: process.env.CLOUDINARY_API_KEY!,
+  api_secret: process.env.CLOUDINARY_API_SECRET!,
+  secure: true,
+});
 
 const router = express.Router();
 
@@ -147,85 +158,77 @@ router.post(
 
       console.log(`📤 Uploading to Cloudinary: ${publicId}`);
 
-      const uploadResult = await new Promise<UploadApiResponse>((resolve, reject) => {
-        // Set timeout for large file uploads (15 minutes for very large files)
-        const uploadTimeout = setTimeout(() => {
-          console.error('❌ Upload timeout after 15 minutes');
-          reject(new Error('Upload timeout: File is too large or upload is taking too long. Please try a smaller file or check your connection.'));
-        }, 900000); // 15 minutes
+      // ----------------- Robust Cloudinary upload (drop-in replacement) -----------------
+      const uploadResult: UploadApiResponse = await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          console.error("❌ Upload timed out before Cloudinary callback");
+          reject(new Error("Upload timeout"));
+        }, 90_000);
 
-        let uploadedBytes = 0;
-        const totalBytes = buffer.length;
-
-        const uploadStream = cloudinary.uploader.upload_stream(
+        const stream = cloudinary.uploader.upload_stream(
           {
             public_id: publicId,
-            resource_type: 'video',
-            type: 'upload',
-            access_mode: 'public',
-            use_filename: false,
-            unique_filename: false,
-            overwrite: false,
-            filename_override: `${sanitizedName}${extension}`,
-            chunk_size: 6_000_000, // 6MB chunks
-            // Free tier optimization: Lower quality = less bandwidth
-            quality: 'auto:low',
+            resource_type: "video" as "video",  // <-- FIXED TYPE
+            type: "upload",
+            access_mode: "public",
+
+            eager_async: true, // prevents Render timeout
+
+            chunk_size: 6_000_000,
+
             transformation: [
-              { width: 1280, height: 720, crop: 'limit' } // Max 720p for free tier
+              { width: 1280, height: 720, crop: "limit" }
             ],
+
             context: {
               uploadedBy: uid,
-              uploadedByEmail: email || '',
-              uploadedByName: displayName || '',
+              uploadedByEmail: email || "",
+              uploadedByName: displayName,
               originalName: originalname,
-            },
+            }
           },
+
           (error, result) => {
-            clearTimeout(uploadTimeout);
+            clearTimeout(timeout);
+
             if (error) {
-              console.error('❌ Cloudinary upload error:', error);
-              console.error('Error details:', JSON.stringify(error, null, 2));
-              return reject(new Error(error.message || 'Failed to upload video to Cloudinary'));
+              console.error("❌ Cloudinary callback error:", error);
+              return reject(new Error(error.message || "Cloudinary upload failed"));
             }
+
             if (!result) {
-              console.error('❌ Upload completed but no result returned');
-              return reject(new Error('Upload completed but no result returned'));
+              return reject(new Error("Cloudinary returned empty result"));
             }
-            console.log(`✅ Video uploaded successfully: ${result.public_id}`);
+
+            console.log(`✅ Cloudinary upload complete: ${result.public_id}`);
             resolve(result);
           }
         );
 
-        // Track upload progress
-        uploadStream.on('data', (chunk) => {
-          uploadedBytes += chunk.length;
-          const progress = Math.round((uploadedBytes / totalBytes) * 100);
-          if (progress % 10 === 0) { // Log every 10%
-            console.log(`📊 Upload progress: ${progress}%`);
-          }
+        stream.on("finish", () => {
+          console.log("📤 Upload stream finished writing");
         });
 
-        uploadStream.on('error', (err) => {
-          clearTimeout(uploadTimeout);
-          console.error('❌ Upload stream error:', err);
-          console.error('Stream error details:', err.message);
-          reject(new Error(err.message || 'Upload stream failed'));
+        stream.on("close", () => {
+          console.log("📤 Upload stream closed");
         });
 
-        uploadStream.on('end', () => {
-          console.log('📤 Upload stream ended');
+        stream.on("error", (err) => {
+          clearTimeout(timeout);
+          console.error("❌ Stream write error:", err);
+          reject(new Error(err.message));
         });
 
-        console.log(`📤 Starting to write buffer to stream (${(buffer.length / 1024 / 1024).toFixed(2)}MB)`);
-        
         try {
-          uploadStream.end(buffer);
-        } catch (streamError: any) {
-          clearTimeout(uploadTimeout);
-          console.error('❌ Error writing to upload stream:', streamError);
-          reject(new Error(`Failed to write file to upload stream: ${streamError.message}`));
+          console.log(`📤 Writing ${(buffer.length / 1024 / 1024).toFixed(2)}MB to Cloudinary`);
+          stream.end(buffer);
+        } catch (err: any) {
+          clearTimeout(timeout);
+          console.error("❌ Exception during stream write:", err);
+          reject(new Error(err.message));
         }
       });
+
 
       const videoData = {
         title,
