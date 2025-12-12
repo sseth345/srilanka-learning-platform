@@ -35,7 +35,8 @@ const limiter = rateLimit({
   max: 100, // limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.'
 });
-app.use(limiter);
+app.use("/api/auth", limiter);
+
 
 // CORS configuration — allow ALL origins
 app.use(
