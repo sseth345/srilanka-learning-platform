@@ -38,14 +38,13 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [
-      process.env.FRONTEND_URL,
-      'https://srilanka-learning-platform.vercel.app',
-      'https://srilanka-learning-platform-blush.vercel.app',
-      /^https:\/\/.*\.vercel\.app$/,
-      /^https:\/\/.*\.vercel\.app\/?$/
-    ].filter(Boolean)
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  /^https:\/\/.*vercel\.app$/,
+  /^https:\/\/.*\.vercel\.app$/,
+  /^https:\/\/srilanka-learning-platform.*\.vercel\.app$/
+].filter(Boolean);
+
   : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:3000', process.env.FRONTEND_URL].filter(Boolean);
 
 app.use(cors({
