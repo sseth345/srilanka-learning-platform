@@ -97,14 +97,14 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
-        service: 'Sri Lankan Learning Platform API'
+        service: 'Learning Platform API'
     });
 });
 // Root endpoint for Render health checks
 app.get('/', (req, res) => {
     res.json({
         status: 'OK',
-        message: 'Sri Lankan Learning Platform API',
+        message: 'Learning Platform API',
         timestamp: new Date().toISOString()
     });
 });
@@ -140,7 +140,7 @@ if (!process.env.VERCEL) {
     const startServer = (port, attemptsLeft) => {
         const server = app.listen(port, () => {
             console.log(`🚀 Server running on port ${port}`);
-            console.log(`📚 Sri Lankan Learning Platform API`);
+            console.log(`📚 Learning Platform API`);
             console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
         });
         // Increase timeout for large file uploads (15 minutes)
